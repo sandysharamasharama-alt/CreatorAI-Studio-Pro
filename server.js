@@ -1,4 +1,6 @@
-import express from "express";
+import "dotenv/config";
+
+mport express from "express";
 import multer from "multer";
 import fs from "fs";
 import path from "path";

@@ -1,846 +1,1292 @@
-import express from "express";
-import multer from "multer";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-import { execFile } from "child_process";
-import { promisify } from "util";
-import ffmpegPath from "ffmpeg-static";
-import { EdgeTTS } from "edge-tts-universal";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const execFileAsync = promisify(execFile);
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-const tmp = path.join(__dirname, "tmp");
-const generated = path.join(__dirname, "generated");
-
-fs.mkdirSync(tmp, { recursive: true });
-fs.mkdirSync(generated, { recursive: true });
-
-const upload = multer({ dest: tmp });
-
-app.use(express.json({ limit: "10mb" }));
-app.use(express.static(__dirname));
-app.use("/generated", express.static(generated));
+const $ = id => document.getElementById(id);
 
 /* =====================================================
-   HELPERS
+   CREATORAI STUDIO PRO
+   Automatic AI Script + AI Voice + Video
 ===================================================== */
 
-function cleanText(text) {
-  return String(text || "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+let project = {
+  title: "",
+  format: "reel",
+  aspectRatio: "9:16",
+  scenes: [],
+  voiceScript: "",
+  voiceUrl: "",
+  videoUrl: ""
+};
 
-function safeFileName(name) {
-  return String(name || "file")
-    .replace(/[^a-z0-9_-]/gi, "_")
-    .slice(0, 80);
-}
+let index = 0;
+let generatedVoiceBlob = null;
 
-function getFormatInfo(format) {
-  if (format === "youtube" || format === "long") {
-    return {
-      aspectRatio: "16:9",
-      width: 1280,
-      height: 720
-    };
-  }
+let recording = null;
+let chunks = [];
 
-  return {
-    aspectRatio: "9:16",
-    width: 720,
-    height: 1280
-  };
-}
+const canvas = $("canvas");
+const ctx = canvas
+  ? canvas.getContext("2d")
+  : null;
 
 /* =====================================================
-   HEALTH
+   CANVAS
 ===================================================== */
 
-app.get("/api/health", (_, res) => {
-  res.json({
-    ok: true,
-    app: "CreatorAI Studio Pro",
-    version: "2.0.0",
-    features: [
-      "AI script",
-      "AI voice",
-      "automatic music",
-      "video generation",
-      "MP4 export"
-    ]
-  });
-});
+function resize() {
+  if (!canvas) return;
 
-/* =====================================================
-   GEMINI AI SCRIPT
-===================================================== */
-
-async function generateAIScript(prompt, format) {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  /*
-    If no Gemini key is configured, use a safe fallback.
-    This keeps the app from completely breaking.
-  */
-
-  if (!apiKey) {
-    return fallbackScript(prompt, format);
+  if (project.aspectRatio === "16:9") {
+    canvas.width = 1280;
+    canvas.height = 720;
+  } else {
+    canvas.width = 720;
+    canvas.height = 1280;
   }
-
-  const model =
-    process.env.GEMINI_MODEL || "gemini-3.7-flash";
-
-  const formatInfo = getFormatInfo(format);
-
-  const instruction = `
-You are the professional AI scriptwriter inside CreatorAI Studio Pro.
-
-Create a short-form social media video.
-
-USER TOPIC:
-${prompt}
-
-FORMAT:
-${format}
-
-ASPECT RATIO:
-${formatInfo.aspectRatio}
-
-Requirements:
-- Do NOT simply repeat the user's prompt.
-- Understand the topic.
-- Create an original engaging hook.
-- Explain the topic naturally.
-- Make the script sound like a human creator.
-- Include useful information.
-- End with a natural call to action.
-- The voice should sound good when spoken aloud.
-- Do not use markdown.
-- Do not include explanations outside the JSON.
-
-Return ONLY valid JSON in this exact structure:
-
-{
-  "title": "short title",
-  "voiceScript": "complete narration",
-  "scenes": [
-    {
-      "headline": "short visual headline",
-      "body": "short scene text",
-      "duration": 4
-    }
-  ]
 }
 
-Create 5 to 7 scenes.
-Total narration should normally fit approximately 25 to 45 seconds.
-`;
+function wrapText(text, x, y, maxWidth, lineHeight) {
+  if (!ctx) return;
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: instruction
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.8,
-          maxOutputTokens: 1800
-        }
-      })
-    }
-  );
+  const words =
+    String(text || "").split(/\s+/);
 
-  if (!response.ok) {
-    const errorText = await response.text();
+  let line = "";
 
-    console.error(
-      "Gemini error:",
-      response.status,
-      errorText
-    );
-
-    return fallbackScript(prompt, format);
-  }
-
-  const data = await response.json();
-
-  const text =
-    data?.candidates?.[0]?.content?.parts
-      ?.map(part => part.text || "")
-      .join("")
-      .trim();
-
-  if (!text) {
-    return fallbackScript(prompt, format);
-  }
-
-  let jsonText = text;
-
-  /*
-    Sometimes models return:
-    ```json
-    {...}
-    ```
-  */
-
-  jsonText = jsonText
-    .replace(/^```json/i, "")
-    .replace(/^```/i, "")
-    .replace(/```$/i, "")
-    .trim();
-
-  try {
-    const result = JSON.parse(jsonText);
+  for (const word of words) {
+    const test =
+      line ? line + " " + word : word;
 
     if (
-      !result.voiceScript ||
-      !Array.isArray(result.scenes)
+      ctx.measureText(test).width >
+        maxWidth &&
+      line
     ) {
-      throw new Error("Invalid AI structure");
+      ctx.fillText(line, x, y);
+
+      line = word;
+      y += lineHeight;
+    } else {
+      line = test;
     }
+  }
 
-    return {
-      title:
-        cleanText(result.title) ||
-        cleanText(prompt).slice(0, 80),
-
-      voiceScript:
-        cleanText(result.voiceScript),
-
-      scenes:
-        result.scenes
-          .slice(0, 8)
-          .map(scene => ({
-            headline:
-              cleanText(scene.headline) ||
-              "Key idea",
-
-            body:
-              cleanText(scene.body) ||
-              "",
-
-            duration:
-              Math.max(
-                3,
-                Math.min(
-                  10,
-                  Number(scene.duration) || 5
-                )
-              )
-          }))
-    };
-  } catch (error) {
-    console.error(
-      "Could not parse Gemini JSON:",
-      error
-    );
-
-    return fallbackScript(prompt, format);
+  if (line) {
+    ctx.fillText(line, x, y);
   }
 }
 
 /* =====================================================
-   FALLBACK SCRIPT
+   DRAW VIDEO SCENE
 ===================================================== */
 
-function fallbackScript(prompt, format) {
-  const topic = cleanText(prompt);
+function draw() {
+  if (!canvas || !ctx) return;
 
-  const scenes = [
-    {
-      headline: "Here's what you need to know",
+  resize();
+
+  const scene =
+    project.scenes[index] || {
+      headline: "Create your first video",
       body:
-        `Let's quickly break down ${topic} and why it matters.`,
-      duration: 5
-    },
+        "Enter a topic and let CreatorAI create the video."
+    };
 
-    {
-      headline: "The important part",
-      body:
-        `The key idea is to understand the most useful part of ${topic}.`,
-      duration: 5
-    },
+  const gradient =
+    ctx.createLinearGradient(
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
 
-    {
-      headline: "Why it matters",
-      body:
-        `This can help you make better decisions and get more value from the idea.`,
-      duration: 5
-    },
+  gradient.addColorStop(
+    0,
+    "#071a2a"
+  );
 
-    {
-      headline: "Try this",
-      body:
-        `Start with one simple step and test the result for yourself.`,
-      duration: 5
-    },
+  gradient.addColorStop(
+    0.55,
+    "#07111f"
+  );
 
-    {
-      headline: "Final tip",
-      body:
-        `Keep improving as you learn what works best for you.`,
-      duration: 5
-    },
+  gradient.addColorStop(
+    1,
+    "#03050a"
+  );
 
-    {
-      headline: "Follow for more",
-      body:
-        `Follow, save and share for more useful creator tips.`,
-      duration: 4
-    }
-  ];
+  ctx.fillStyle = gradient;
 
-  return {
-    title: topic.slice(0, 80),
-    format,
-    aspectRatio: getFormatInfo(format).aspectRatio,
+  ctx.fillRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
 
-    voiceScript: scenes
-      .map(scene => scene.body)
-      .join(" "),
+  /* Grid */
 
-    scenes
-  };
+  ctx.strokeStyle =
+    "#123b4a";
+
+  ctx.globalAlpha = 0.35;
+
+  for (
+    let x = 0;
+    x < canvas.width;
+    x += 80
+  ) {
+    ctx.beginPath();
+
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height);
+
+    ctx.stroke();
+  }
+
+  for (
+    let y = 0;
+    y < canvas.height;
+    y += 80
+  ) {
+    ctx.beginPath();
+
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+
+    ctx.stroke();
+  }
+
+  ctx.globalAlpha = 1;
+
+  /* CreatorAI label */
+
+  ctx.fillStyle =
+    "#28d5f5";
+
+  if (ctx.roundRect) {
+    ctx.beginPath();
+
+    ctx.roundRect(
+      45,
+      45,
+      300,
+      58,
+      29
+    );
+
+    ctx.fill();
+  } else {
+    ctx.fillRect(
+      45,
+      45,
+      300,
+      58
+    );
+  }
+
+  ctx.fillStyle = "#001018";
+
+  ctx.font =
+    "800 23px system-ui";
+
+  ctx.fillText(
+    "CREATORAI • AI VIDEO",
+    68,
+    82
+  );
+
+  /* Headline */
+
+  ctx.fillStyle =
+    "#ffffff";
+
+  ctx.font =
+    `800 ${Math.round(
+      canvas.width * 0.065
+    )}px system-ui`;
+
+  wrapText(
+    scene.headline,
+    70,
+    canvas.height * 0.40,
+    canvas.width - 140,
+    Math.round(
+      canvas.width * 0.065
+    ) * 1.15
+  );
+
+  /* Body */
+
+  ctx.fillStyle =
+    "#b8c2d5";
+
+  ctx.font =
+    `500 ${Math.round(
+      canvas.width * 0.028
+    )}px system-ui`;
+
+  wrapText(
+    scene.body,
+    70,
+    canvas.height * 0.67,
+    canvas.width - 140,
+    Math.round(
+      canvas.width * 0.028
+    ) * 1.5
+  );
+
+  /* Bottom bar */
+
+  ctx.fillStyle =
+    "#28d5f5";
+
+  ctx.fillRect(
+    70,
+    canvas.height - 80,
+    canvas.width - 140,
+    6
+  );
+
+  ctx.fillStyle =
+    "#d7dbea";
+
+  ctx.font =
+    "600 18px system-ui";
+
+  ctx.fillText(
+    "FOLLOW • SAVE • SHARE",
+    70,
+    canvas.height - 105
+  );
+
+  if ($("sceneNum")) {
+    $("sceneNum").textContent =
+      `Scene ${index + 1} / ${
+        project.scenes.length || 1
+      }`;
+  }
+}
+
+/* =====================================================
+   ESCAPE HTML
+===================================================== */
+
+function esc(value) {
+  return String(value || "")
+    .replace(
+      /[&<>"']/g,
+      char =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;"
+        })[char]
+    );
+}
+
+/* =====================================================
+   RENDER
+===================================================== */
+
+function render() {
+  if ($("scenes")) {
+    $("scenes").innerHTML =
+      project.scenes
+        .map(
+          (scene, i) =>
+            `
+            <div
+              class="scene ${
+                i === index
+                  ? "active"
+                  : ""
+              }"
+              data-i="${i}"
+              style="cursor:pointer"
+            >
+              <b>
+                ${i + 1}.
+                ${esc(scene.headline)}
+              </b>
+
+              <small>
+                ${scene.duration || 4}s
+              </small>
+            </div>
+            `
+        )
+        .join("");
+
+    document
+      .querySelectorAll(".scene")
+      .forEach(element => {
+        element.onclick = () => {
+          index =
+            Number(
+              element.dataset.i
+            );
+
+          render();
+        };
+      });
+  }
+
+  draw();
+}
+
+/* =====================================================
+   STATUS
+===================================================== */
+
+function status(message) {
+  if ($("status")) {
+    $("status").textContent =
+      message;
+  }
 }
 
 /* =====================================================
    AI PLAN
 ===================================================== */
 
-app.post("/api/ai/plan", async (req, res) => {
-  try {
-    const prompt =
-      cleanText(req.body?.prompt);
+async function createAIPlan(prompt, format) {
+  const response =
+    await fetch(
+      "/api/ai/plan",
+      {
+        method: "POST",
 
-    const format =
-      req.body?.format || "reel";
+        headers: {
+          "Content-Type":
+            "application/json"
+        },
 
-    if (!prompt) {
-      return res.status(400).json({
-        error: "Prompt is required"
-      });
-    }
-
-    const plan =
-      await generateAIScript(
-        prompt,
-        format
-      );
-
-    res.json({
-      ...plan,
-      format,
-      aspectRatio:
-        getFormatInfo(format).aspectRatio
-    });
-
-  } catch (error) {
-    console.error(
-      "AI PLAN ERROR:",
-      error
+        body: JSON.stringify({
+          prompt,
+          format
+        })
+      }
     );
 
-    res.status(500).json({
-      error: "AI planning failed"
-    });
+  if (!response.ok) {
+    throw new Error(
+      "AI planning failed: " +
+        response.status
+    );
   }
-});
+
+  return await response.json();
+}
 
 /* =====================================================
    AI VOICE
 ===================================================== */
 
-app.post("/api/ai/voice", async (req, res) => {
-  try {
-    const text =
-      cleanText(req.body?.text);
+async function createAIVoice(text) {
+  const response =
+    await fetch(
+      "/api/ai/voice",
+      {
+        method: "POST",
 
-    const voice =
-      req.body?.voice ||
-      "en-US-AndrewMultilingualNeural";
+        headers: {
+          "Content-Type":
+            "application/json"
+        },
 
-    if (!text) {
-      return res.status(400).json({
-        error: "Voice text is required"
-      });
-    }
-
-    const fileName =
-      `voice-${Date.now()}.mp3`;
-
-    const output =
-      path.join(
-        generated,
-        fileName
-      );
-
-    const tts =
-      new EdgeTTS(
-        text,
-        voice,
-        {
-          rate: "+5%",
-          volume: "+0%",
-          pitch: "+0Hz"
-        }
-      );
-
-    const result =
-      await tts.synthesize();
-
-    const audioBuffer =
-      Buffer.from(
-        await result.audio.arrayBuffer()
-      );
-
-    await fs.promises.writeFile(
-      output,
-      audioBuffer
+        body: JSON.stringify({
+          text,
+          voice:
+            "en-US-AndrewMultilingualNeural"
+        })
+      }
     );
 
-    res.json({
-      ok: true,
-      voice,
-      url:
-        `/generated/${fileName}`
-    });
-
-  } catch (error) {
-    console.error(
-      "VOICE ERROR:",
-      error
+  if (!response.ok) {
+    throw new Error(
+      "AI voice failed: " +
+        response.status
     );
-
-    res.status(500).json({
-      error:
-        "AI voice generation failed"
-    });
   }
-});
 
-/* =====================================================
-   AUTOMATIC MUSIC
-===================================================== */
-
-async function createBackgroundMusic(
-  output,
-  duration = 35
-) {
-  /*
-    Generates simple royalty-free
-    synthetic background music locally
-    using FFmpeg.
-  */
-
-  const seconds =
-    Math.max(
-      5,
-      Math.min(120, Number(duration) || 35)
-    );
-
-  await execFileAsync(
-    ffmpegPath,
-    [
-      "-y",
-
-      "-f",
-      "lavfi",
-
-      "-i",
-      `sine=frequency=220:duration=${seconds}`,
-
-      "-af",
-      "volume=0.035",
-
-      "-ac",
-      "2",
-
-      "-ar",
-      "44100",
-
-      output
-    ]
-  );
+  return await response.json();
 }
 
 /* =====================================================
-   AUTOMATIC VIDEO
+   COMPLETE AUTOMATIC VIDEO
 ===================================================== */
 
-app.post(
-  "/api/ai/video",
-  async (req, res) => {
-    try {
-      const prompt =
-        cleanText(req.body?.prompt);
+async function generateCompleteVideo() {
+  const prompt =
+    $("prompt")?.value?.trim();
 
-      const format =
-        req.body?.format || "reel";
+  const format =
+    $("format")?.value ||
+    "reel";
 
-      if (!prompt) {
-        return res.status(400).json({
-          error: "Prompt is required"
-        });
-      }
+  if (!prompt) {
+    status(
+      "❌ ਪਹਿਲਾਂ topic/prompt ਲਿਖੋ।"
+    );
 
-      console.log(
-        "Creating AI video:",
-        prompt
-      );
-
-      /*
-        1. AI script
-      */
-
-      const plan =
-        await generateAIScript(
-          prompt,
-          format
-        );
-
-      /*
-        2. AI voice
-      */
-
-      const voiceName =
-        req.body?.voice ||
-        "en-US-AndrewMultilingualNeural";
-
-      const voiceFile =
-        `voice-${Date.now()}.mp3`;
-
-      const voicePath =
-        path.join(
-          generated,
-          voiceFile
-        );
-
-      const tts =
-        new EdgeTTS(
-          plan.voiceScript,
-          voiceName,
-          {
-            rate: "+5%",
-            volume: "+0%",
-            pitch: "+0Hz"
-          }
-        );
-
-      const voiceResult =
-        await tts.synthesize();
-
-      const voiceBuffer =
-        Buffer.from(
-          await voiceResult.audio.arrayBuffer()
-        );
-
-      await fs.promises.writeFile(
-        voicePath,
-        voiceBuffer
-      );
-
-      /*
-        3. Background music
-      */
-
-      const musicFile =
-        `music-${Date.now()}.wav`;
-
-      const musicPath =
-        path.join(
-          generated,
-          musicFile
-        );
-
-      await createBackgroundMusic(
-        musicPath,
-        60
-      );
-
-      /*
-        4. Create simple video canvas
-      */
-
-      const info =
-        getFormatInfo(format);
-
-      const videoFile =
-        `creatorai-${Date.now()}.mp4`;
-
-      const videoPath =
-        path.join(
-          generated,
-          videoFile
-        );
-
-      const title =
-        safeFileName(
-          plan.title || "CreatorAI"
-        );
-
-      /*
-        Text file prevents complicated
-        shell escaping problems.
-      */
-
-      const textFile =
-        path.join(
-          tmp,
-          `video-text-${Date.now()}.txt`
-        );
-
-      const text =
-        [
-          plan.title,
-          "",
-          ...plan.scenes.map(
-            s =>
-              `${s.headline}\n${s.body}`
-          )
-        ].join("\n");
-
-      await fs.promises.writeFile(
-        textFile,
-        text,
-        "utf8"
-      );
-
-      /*
-        5. Render video + voice + music
-      */
-
-      await execFileAsync(
-        ffmpegPath,
-        [
-          "-y",
-
-          "-f",
-          "lavfi",
-
-          "-i",
-          `color=c=0x07111f:s=${info.width}x${info.height}:r=30`,
-
-          "-i",
-          voicePath,
-
-          "-i",
-          musicPath,
-
-          "-filter_complex",
-
-          `[2:a]volume=0.035[music];` +
-          `[1:a]volume=1.0[voice];` +
-          `[voice][music]amix=inputs=2:duration=first:dropout_transition=2[audio]`,
-
-          "-map",
-          "0:v",
-
-          "-map",
-          "[audio]",
-
-          "-t",
-          "60",
-
-          "-c:v",
-          "libx264",
-
-          "-preset",
-          "veryfast",
-
-          "-pix_fmt",
-          "yuv420p",
-
-          "-c:a",
-          "aac",
-
-          "-b:a",
-          "128k",
-
-          "-movflags",
-          "+faststart",
-
-          videoPath
-        ]
-      );
-
-      try {
-        await fs.promises.unlink(
-          textFile
-        );
-      } catch {}
-
-      res.json({
-        ok: true,
-
-        title:
-          plan.title,
-
-        format,
-
-        aspectRatio:
-          info.aspectRatio,
-
-        voiceScript:
-          plan.voiceScript,
-
-        scenes:
-          plan.scenes,
-
-        voiceUrl:
-          `/generated/${voiceFile}`,
-
-        musicUrl:
-          `/generated/${musicFile}`,
-
-        videoUrl:
-          `/generated/${videoFile}`
-      });
-
-    } catch (error) {
-      console.error(
-        "VIDEO GENERATION ERROR:",
-        error
-      );
-
-      res.status(500).json({
-        error:
-          "Automatic video generation failed",
-        details:
-          error?.message || "Unknown error"
-      });
-    }
+    return;
   }
-);
 
-/* =====================================================
-   MP4 CONVERSION
-===================================================== */
+  try {
+    status(
+      "🧠 AI script ਬਣਾ ਰਿਹਾ ਹੈ..."
+    );
 
-app.post(
-  "/api/convert/mp4",
-  upload.single("video"),
-  async (req, res) => {
+    /* 1. AI script */
 
-    if (!req.file) {
-      return res.status(400).json({
-        error: "No video uploaded"
-      });
-    }
-
-    const input =
-      req.file.path;
-
-    const output =
-      input + ".mp4";
-
-    try {
-
-      await execFileAsync(
-        ffmpegPath,
-        [
-          "-y",
-
-          "-i",
-          input,
-
-          "-c:v",
-          "libx264",
-
-          "-pix_fmt",
-          "yuv420p",
-
-          "-movflags",
-          "+faststart",
-
-          "-c:a",
-          "aac",
-
-          output
-        ]
+    const plan =
+      await createAIPlan(
+        prompt,
+        format
       );
 
-      try {
-        await fs.promises.unlink(
-          input
-        );
-      } catch {}
+    project = {
+      ...plan,
+      format,
+      scenes:
+        Array.isArray(
+          plan.scenes
+        )
+          ? plan.scenes
+          : [],
+      voiceScript:
+        plan.voiceScript || ""
+    };
 
-      res.download(
-        output,
-        "creatorai-video.mp4",
-        async () => {
-          try {
-            await fs.promises.unlink(
-              output
-            );
-          } catch {}
+    index = 0;
+
+    render();
+
+    /* 2. AI voice */
+
+    status(
+      "🗣️ AI voice ਬਣ ਰਹੀ ਹੈ..."
+    );
+
+    const voice =
+      await createAIVoice(
+        project.voiceScript
+      );
+
+    project.voiceUrl =
+      voice.url || "";
+
+    /* 3. Get voice file */
+
+    if (voice.url) {
+      try {
+        const audioResponse =
+          await fetch(
+            voice.url
+          );
+
+        if (audioResponse.ok) {
+          generatedVoiceBlob =
+            await audioResponse.blob();
+
+          if ($("audio")) {
+            $("audio").src =
+              URL.createObjectURL(
+                generatedVoiceBlob
+              );
+
+            $("audio").hidden =
+              false;
+          }
+        }
+      } catch (error) {
+        console.warn(
+          "Voice preview failed:",
+          error
+        );
+      }
+    }
+
+    /* 4. Ask server to create video */
+
+    status(
+      "🎬 AI video ਬਣ ਰਹੀ ਹੈ..."
+    );
+
+    const videoResponse =
+      await fetch(
+        "/api/ai/video",
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          body: JSON.stringify({
+            prompt,
+            format
+          })
         }
       );
 
-    } catch (error) {
+    if (!videoResponse.ok) {
+      throw new Error(
+        "Automatic video failed: " +
+          videoResponse.status
+      );
+    }
 
-      console.error(
-        "MP4 ERROR:",
-        error
+    const videoData =
+      await videoResponse.json();
+
+    project.title =
+      videoData.title ||
+      project.title;
+
+    project.scenes =
+      videoData.scenes ||
+      project.scenes;
+
+    project.voiceScript =
+      videoData.voiceScript ||
+      project.voiceScript;
+
+    project.videoUrl =
+      videoData.videoUrl ||
+      "";
+
+    project.voiceUrl =
+      videoData.voiceUrl ||
+      project.voiceUrl;
+
+    render();
+
+    /* 5. Show generated video */
+
+    showGeneratedVideo(
+      project.videoUrl
+    );
+
+    status(
+      "✅ Video ਤਿਆਰ ਹੈ! AI ਨੇ script, voice ਅਤੇ video ਆਪਣੇ ਆਪ ਬਣਾਈ।"
+    );
+
+  } catch (error) {
+    console.error(
+      "COMPLETE VIDEO ERROR:",
+      error
+    );
+
+    status(
+      "❌ Video generation failed: " +
+        (error.message ||
+          "Unknown error")
+    );
+  }
+}
+
+/* =====================================================
+   SHOW GENERATED VIDEO
+===================================================== */
+
+function showGeneratedVideo(url) {
+  if (!url) return;
+
+  let video =
+    $("generatedVideo");
+
+  if (!video) {
+    video =
+      document.createElement(
+        "video"
       );
 
-      try {
-        await fs.promises.unlink(
-          input
-        );
-      } catch {}
+    video.id =
+      "generatedVideo";
 
-      res.status(500).json({
-        error:
-          "MP4 conversion failed"
-      });
+    video.controls =
+      true;
+
+    video.playsInline =
+      true;
+
+    video.style.width =
+      "100%";
+
+    video.style.maxHeight =
+      "650px";
+
+    video.style.borderRadius =
+      "18px";
+
+    video.style.marginTop =
+      "20px";
+
+    const parent =
+      canvas?.parentElement ||
+      document.body;
+
+    parent.appendChild(
+      video
+    );
+  }
+
+  video.src = url;
+
+  video.style.display =
+    "block";
+
+  video.load();
+}
+
+/* =====================================================
+   GENERATE BUTTON
+===================================================== */
+
+if ($("generate")) {
+  $("generate").onclick =
+    async () => {
+
+      const prompt =
+        $("prompt")?.value?.trim();
+
+      if (!prompt) {
+        status(
+          "Write a topic first."
+        );
+
+        return;
+      }
+
+      /*
+        Instead of the old
+        fake 4-scene generator,
+        run the complete AI system.
+      */
+
+      await generateCompleteVideo();
+    };
+}
+
+/* =====================================================
+   AUTO VIDEO BUTTON
+===================================================== */
+
+function createAutoVideoButton() {
+  if ($("autoVideo")) {
+    return;
+  }
+
+  const generate =
+    $("generate");
+
+  if (!generate) {
+    return;
+  }
+
+  const button =
+    document.createElement(
+      "button"
+    );
+
+  button.id =
+    "autoVideo";
+
+  button.type =
+    "button";
+
+  button.textContent =
+    "🎬 Generate Complete AI Video";
+
+  button.style.marginLeft =
+    "10px";
+
+  button.onclick =
+    generateCompleteVideo;
+
+  generate.parentElement
+    ?.appendChild(button);
+}
+
+/* =====================================================
+   PREVIOUS / NEXT
+===================================================== */
+
+if ($("prev")) {
+  $("prev").onclick =
+    () => {
+      if (
+        !project.scenes.length
+      ) return;
+
+      index =
+        (index -
+          1 +
+          project.scenes.length) %
+        project.scenes.length;
+
+      render();
+    };
+}
+
+if ($("next")) {
+  $("next").onclick =
+    () => {
+      if (
+        !project.scenes.length
+      ) return;
+
+      index =
+        (index + 1) %
+        project.scenes.length;
+
+      render();
+    };
+}
+
+/* =====================================================
+   PLAY GENERATED VIDEO
+===================================================== */
+
+function downloadVideo() {
+  if (!project.videoUrl) {
+    status(
+      "❌ ਪਹਿਲਾਂ video generate ਕਰੋ।"
+    );
+
+    return;
+  }
+
+  const link =
+    document.createElement(
+      "a"
+    );
+
+  link.href =
+    project.videoUrl;
+
+  link.download =
+    "creatorai-video.mp4";
+
+  document.body.appendChild(
+    link
+  );
+
+  link.click();
+
+  link.remove();
+}
+
+function createDownloadButton() {
+  if (
+    $("downloadGenerated")
+  ) {
+    return;
+  }
+
+  const button =
+    document.createElement(
+      "button"
+    );
+
+  button.id =
+    "downloadGenerated";
+
+  button.textContent =
+    "📥 Download AI Video";
+
+  button.style.marginTop =
+    "12px";
+
+  button.onclick =
+    downloadVideo;
+
+  const video =
+    $("generatedVideo");
+
+  if (video) {
+    video.parentElement
+      ?.appendChild(button);
+  }
+}
+
+/* =====================================================
+   CANVAS VIDEO RECORDING
+===================================================== */
+
+async function recordCanvasVideo() {
+  if (!canvas) {
+    throw new Error(
+      "Canvas not found."
+    );
+  }
+
+  if (
+    !project.scenes.length
+  ) {
+    throw new Error(
+      "No scenes available."
+    );
+  }
+
+  draw();
+
+  const stream =
+    canvas.captureStream(30);
+
+  let audioContext = null;
+  let source = null;
+  let audioElement = null;
+
+  /*
+    Use AI generated voice.
+  */
+
+  if (project.voiceUrl) {
+    try {
+      audioElement =
+        new Audio();
+
+      audioElement.src =
+        project.voiceUrl;
+
+      audioElement.crossOrigin =
+        "anonymous";
+
+      await audioElement
+        .play()
+        .catch(() => {});
+
+      audioContext =
+        new AudioContext();
+
+      source =
+        audioContext
+          .createMediaElementSource(
+            audioElement
+          );
+
+      const destination =
+        audioContext
+          .createMediaStreamDestination();
+
+      source.connect(
+        destination
+      );
+
+      source.connect(
+        audioContext.destination
+      );
+
+      destination.stream
+        .getAudioTracks()
+        .forEach(track => {
+          stream.addTrack(
+            track
+          );
+        });
+
+    } catch (error) {
+      console.warn(
+        "Could not attach AI voice:",
+        error
+      );
+    }
+  }
+
+  let mime =
+    "video/webm";
+
+  if (
+    MediaRecorder.isTypeSupported(
+      "video/webm;codecs=vp9,opus"
+    )
+  ) {
+    mime =
+      "video/webm;codecs=vp9,opus";
+  }
+
+  const recorder =
+    new MediaRecorder(
+      stream,
+      {
+        mimeType: mime
+      }
+    );
+
+  const output = [];
+
+  recorder.ondataavailable =
+    event => {
+      if (
+        event.data &&
+        event.data.size
+      ) {
+        output.push(
+          event.data
+        );
+      }
+    };
+
+  const finished =
+    new Promise(resolve => {
+      recorder.onstop =
+        () => {
+          resolve(
+            new Blob(
+              output,
+              {
+                type: mime
+              }
+            )
+          );
+        };
+    });
+
+  recorder.start(250);
+
+  for (
+    let i = 0;
+    i < project.scenes.length;
+    i++
+  ) {
+    index = i;
+
+    render();
+
+    const duration =
+      Number(
+        project.scenes[i]
+          .duration
+      ) || 4;
+
+    await new Promise(
+      resolve =>
+        setTimeout(
+          resolve,
+          duration * 1000
+        )
+    );
+  }
+
+  recorder.stop();
+
+  if (audioContext) {
+    try {
+      await audioContext.close();
+    } catch {}
+  }
+
+  return finished;
+}
+
+/* =====================================================
+   WEBM EXPORT
+===================================================== */
+
+if ($("export")) {
+  $("export").onclick =
+    async () => {
+
+      if (
+        !project.scenes.length
+      ) {
+        status(
+          "Generate a project first."
+        );
+
+        return;
+      }
+
+      try {
+        status(
+          "🎬 Rendering video..."
+        );
+
+        const blob =
+          await recordCanvasVideo();
+
+        const url =
+          URL.createObjectURL(
+            blob
+          );
+
+        const link =
+          document.createElement(
+            "a"
+          );
+
+        link.href = url;
+
+        link.download =
+          "creatorai-video.webm";
+
+        document.body.appendChild(
+          link
+        );
+
+        link.click();
+
+        link.remove();
+
+        status(
+          "✅ WebM video exported."
+        );
+
+      } catch (error) {
+        console.error(error);
+
+        status(
+          "❌ Export failed."
+        );
+      }
+    };
+}
+
+/* =====================================================
+   MP4 EXPORT
+===================================================== */
+
+if ($("mp4")) {
+  $("mp4").onclick =
+    async () => {
+
+      if (
+        !project.scenes.length
+      ) {
+        status(
+          "Generate a project first."
+        );
+
+        return;
+      }
+
+      try {
+        status(
+          "🎬 Rendering and converting to MP4..."
+        );
+
+        const blob =
+          await recordCanvasVideo();
+
+        const form =
+          new FormData();
+
+        form.append(
+          "video",
+          blob,
+          "creatorai-video.webm"
+        );
+
+        const response =
+          await fetch(
+            "/api/convert/mp4",
+            {
+              method: "POST",
+              body: form
+            }
+          );
+
+        if (!response.ok) {
+          throw new Error(
+            "MP4 conversion failed."
+          );
+        }
+
+        const mp4 =
+          await response.blob();
+
+        const url =
+          URL.createObjectURL(
+            mp4
+          );
+
+        const link =
+          document.createElement(
+            "a"
+          );
+
+        link.href = url;
+
+        link.download =
+          "creatorai-video.mp4";
+
+        document.body.appendChild(
+          link
+        );
+
+        link.click();
+
+        link.remove();
+
+        status(
+          "✅ MP4 exported successfully."
+        );
+
+      } catch (error) {
+        console.error(error);
+
+        status(
+          "❌ MP4 export failed: " +
+            error.message
+        );
+      }
+    };
+}
+
+/* =====================================================
+   SAVE PROJECT
+===================================================== */
+
+if ($("save")) {
+  $("save").onclick =
+    () => {
+
+      const blob =
+        new Blob(
+          [
+            JSON.stringify(
+              project,
+              null,
+              2
+            )
+          ],
+          {
+            type:
+              "application/json"
+          }
+        );
+
+      const url =
+        URL.createObjectURL(
+          blob
+        );
+
+      const link =
+        document.createElement(
+          "a"
+        );
+
+      link.href = url;
+
+      link.download =
+        "creatorai-project.json";
+
+      link.click();
+
+      URL.revokeObjectURL(
+        url
+      );
+    };
+}
+
+/* =====================================================
+   LOAD PROJECT
+===================================================== */
+
+if ($("load")) {
+  $("load").onchange =
+    async event => {
+
+      try {
+        const file =
+          event.target.files[0];
+
+        if (!file) return;
+
+        project =
+          JSON.parse(
+            await file.text()
+          );
+
+        index = 0;
+
+        render();
+
+        status(
+          "✅ Project loaded."
+        );
+
+      } catch (error) {
+        console.error(error);
+
+        status(
+          "❌ Invalid project file."
+        );
+      }
+    };
+}
+
+/* =====================================================
+   PWA
+===================================================== */
+
+let deferredInstall = null;
+
+window.addEventListener(
+  "beforeinstallprompt",
+  event => {
+
+    event.preventDefault();
+
+    deferredInstall =
+      event;
+
+    if ($("installBtn")) {
+      $("installBtn").hidden =
+        false;
     }
   }
 );
 
+if ($("installBtn")) {
+  $("installBtn").onclick =
+    async () => {
+
+      if (
+        !deferredInstall
+      ) {
+        return;
+      }
+
+      deferredInstall.prompt();
+
+      deferredInstall = null;
+    };
+}
+
 /* =====================================================
-   SPA FALLBACK
+   SERVICE WORKER
 ===================================================== */
 
-app.get(
-  "/{*splat}",
-  (_, res) => {
-    res.sendFile(
-      path.join(
-        __dirname,
-        "index.html"
-      )
+if (
+  "serviceWorker" in
+  navigator
+) {
+  navigator.serviceWorker
+    .register(
+      "/sw.js"
+    )
+    .catch(
+      error =>
+        console.warn(
+          "Service worker:",
+          error
+        )
     );
-  }
-);
+}
 
 /* =====================================================
    START
 ===================================================== */
 
-app.listen(
-  PORT,
-  () => {
-    console.log(
-      `CreatorAI Studio Pro running on port ${PORT}`
-    );
-  }
+render();
+
+createAutoVideoButton();
+
+setTimeout(
+  createDownloadButton,
+  1000
 );

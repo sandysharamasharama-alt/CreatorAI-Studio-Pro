@@ -692,62 +692,242 @@ async function createAIVoice(
 
 
 /* =====================================================
-   GENERATE AI VOICE BUTTON
+   AI VOICE BUTTON
 ===================================================== */
 
-if ($("generateVoice")) {
+const generateVoiceButton =
+  document.getElementById("generateVoice");
 
-  $("generateVoice").onclick =
+if (generateVoiceButton) {
+
+  generateVoiceButton.addEventListener(
+    "click",
     async () => {
 
-      const text =
-        project.voiceScript ||
-        $("prompt")
-          ?.value
-          ?.trim();
+      const voiceText =
+        document.getElementById("voiceText");
 
+      const voiceStatus =
+        document.getElementById("voiceStatus");
+
+      let text =
+        voiceText?.value?.trim() || "";
+
+      /*
+       * If voice text is empty, use:
+       * 1. generated project voice script
+       * 2. main prompt
+       */
+
+      if (!text) {
+
+        text =
+          project.voiceScript ||
+          document.getElementById("prompt")
+            ?.value
+            ?.trim() ||
+          "";
+
+      }
 
       if (!text) {
 
         status(
-          "❌ ਪਹਿਲਾਂ prompt ਜਾਂ script ਦਿਓ।"
+          "❌ ਪਹਿਲਾਂ voice text ਜਾਂ prompt ਲਿਖੋ।"
         );
+
+        if (voiceStatus) {
+
+          voiceStatus.textContent =
+            "❌ ਪਹਿਲਾਂ text ਲਿਖੋ।";
+
+        }
 
         return;
 
       }
 
-
       try {
+
+        generateVoiceButton.disabled =
+          true;
+
+        generateVoiceButton.textContent =
+          "⏳ Generating AI Voice...";
 
         status(
           "🗣️ AI voice ਬਣ ਰਹੀ ਹੈ..."
         );
 
+        if (voiceStatus) {
 
-        await createAIVoice(
-          text
-        );
+          voiceStatus.textContent =
+            "🗣️ AI voice generating...";
 
+        }
+
+        const voice =
+          document.getElementById("aiVoice")
+            ?.value ||
+          "en-US-AndrewMultilingualNeural";
+
+        const speed =
+          Number(
+            document.getElementById("voiceSpeed")
+              ?.value || 1
+          );
+
+        const response =
+          await fetch(
+            "/api/ai/voice",
+            {
+              method: "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json"
+              },
+
+              body: JSON.stringify({
+
+                text: text,
+
+                voice: voice,
+
+                speed: speed
+
+              })
+
+            }
+          );
+
+        /*
+         * Read server response safely.
+         */
+
+        const raw =
+          await response.text();
+
+        let data = {};
+
+        try {
+
+          data =
+            raw
+              ? JSON.parse(raw)
+              : {};
+
+        } catch {
+
+          data = {
+            error: raw
+          };
+
+        }
+
+        if (!response.ok) {
+
+          throw new Error(
+            data.error ||
+            data.message ||
+            `Server error ${response.status}`
+          );
+
+        }
+
+        if (!data.url) {
+
+          throw new Error(
+            "Server ਨੇ audio URL ਨਹੀਂ ਭੇਜਿਆ।"
+          );
+
+        }
+
+        /*
+         * Save project state.
+         */
+
+        project.voice =
+          voice;
+
+        project.voiceSpeed =
+          speed;
+
+        project.voiceScript =
+          text;
+
+        project.voiceUrl =
+          data.url;
+
+        generatedVoiceUrl =
+          data.url;
+
+        /*
+         * Show audio player.
+         */
+
+        const audio =
+          document.getElementById("audio");
+
+        if (audio) {
+
+          audio.src =
+            data.url;
+
+          audio.hidden =
+            false;
+
+          audio.load();
+
+        }
+
+        /*
+         * Success.
+         */
 
         status(
-          "✅ AI voice ਤਿਆਰ ਹੈ।"
+          "✅ AI Voice ਤਿਆਰ ਹੈ।"
         );
+
+        if (voiceStatus) {
+
+          voiceStatus.textContent =
+            "✅ AI Voice ਤਿਆਰ ਹੈ। ਤੁਸੀਂ Play ਕਰ ਸਕਦੇ ਹੋ।";
+
+        }
 
       } catch (error) {
 
         console.error(
+          "AI VOICE ERROR:",
           error
         );
 
         status(
-          "❌ " +
+          "❌ AI Voice failed: " +
           error.message
         );
 
+        if (voiceStatus) {
+
+          voiceStatus.textContent =
+            "❌ " +
+            error.message;
+
+        }
+
+      } finally {
+
+        generateVoiceButton.disabled =
+          false;
+
+        generateVoiceButton.textContent =
+          "🗣️ Generate AI Voice";
+
       }
 
-    };
+    }
+  );
 
 }
 

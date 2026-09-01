@@ -1,14 +1,14 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#0b1020">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
 
-<link rel="manifest" href="/manifest.json">
-<link rel="stylesheet" href="/styles.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/styles.css">
 
-<title>CreatorAI Studio Pro</title>
+  <title>CreatorAI Studio Pro</title>
 </head>
 
 <body>
@@ -32,13 +32,9 @@
 
 <section class="hero card">
 
-  <span class="pill">
-    AI CREATOR WORKSPACE
-  </span>
+  <span class="pill">AI CREATOR WORKSPACE</span>
 
-  <h1>
-    Prompt → Story → Voice → Video
-  </h1>
+  <h1>Prompt → Story → Voice → Video</h1>
 
   <p>
     Create reels, YouTube videos, statuses and stories
@@ -53,27 +49,14 @@
   <div class="row">
 
     <select id="format">
-
-      <option value="reel">
-        Reel / Short 9:16
-      </option>
-
-      <option value="status">
-        Status / Story 9:16
-      </option>
-
-      <option value="youtube">
-        YouTube 16:9
-      </option>
-
-      <option value="long">
-        Long video 16:9
-      </option>
-
+      <option value="reel">Reel / Short 9:16</option>
+      <option value="status">Status / Story 9:16</option>
+      <option value="youtube">YouTube 16:9</option>
+      <option value="long">Long video 16:9</option>
     </select>
 
     <button id="generate">
-      Generate with AI Brain
+      🤖 Generate with AI Brain
     </button>
 
   </div>
@@ -89,27 +72,30 @@
      AI VOICE
 ===================================================== -->
 
-<section class="card">
+<section class="card" id="aiVoiceSection">
 
-  <h2>
-    🤖 AI Voice
-  </h2>
+  <h2>🤖 AI Voice</h2>
 
   <p class="muted">
-    Choose an AI-generated voice.
-    Microphone recording is optional.
+    Generate professional AI narration from your prompt or script.
   </p>
 
-  <div class="row">
+  <label>
+    Voice text / script
+  </label>
+
+  <textarea
+    id="voiceText"
+    rows="5"
+    placeholder="Type the text you want the AI voice to speak..."
+  ></textarea>
+
+  <div class="row" style="margin-top:12px">
 
     <label style="flex:1">
-
       AI Voice
 
-      <select
-        id="aiVoice"
-        style="width:100%"
-      >
+      <select id="aiVoice" style="width:100%">
 
         <option value="en-US-AndrewMultilingualNeural">
           English — Andrew
@@ -139,46 +125,27 @@
 
     </label>
 
-
     <label style="width:150px">
-
       Speed
 
-      <select
-        id="voiceSpeed"
-        style="width:100%"
-      >
-
-        <option value="0.9">
-          Slow
-        </option>
-
-        <option value="1" selected>
-          Normal
-        </option>
-
-        <option value="1.1">
-          Fast
-        </option>
-
-        <option value="1.2">
-          Very fast
-        </option>
-
+      <select id="voiceSpeed" style="width:100%">
+        <option value="0.9">Slow</option>
+        <option value="1" selected>Normal</option>
+        <option value="1.1">Fast</option>
+        <option value="1.2">Very fast</option>
       </select>
 
     </label>
 
   </div>
 
+  <div class="row" style="margin-top:15px">
 
-  <div
-    class="row"
-    style="margin-top:12px"
-  >
-
-    <button id="generateVoice">
-      🗣 Generate AI Voice
+    <button
+      id="generateVoice"
+      type="button"
+    >
+      🗣️ Generate AI Voice
     </button>
 
     <audio
@@ -190,72 +157,70 @@
 
   </div>
 
+  <p
+    id="voiceStatus"
+    class="muted"
+    style="margin-top:10px"
+  >
+    AI Voice ready.
+  </p>
+
 </section>
 
 
 <!-- =====================================================
-     RECORDING + SCENES
+     RECORDING
 ===================================================== -->
 
-<section class="grid">
+<section class="card">
 
-  <div class="card">
+  <h2>🎙 Voice & recording</h2>
 
-    <h2>
-      Voice & recording
-    </h2>
+  <p class="muted">
+    Record your own voice or add an audio file instead of AI voice.
+  </p>
 
-    <p class="muted">
-      Record your own voice or add an audio file
-      instead of AI voice.
-    </p>
+  <div class="row">
 
-    <div class="row">
+    <button id="mic" type="button">
+      🎙 Start voice recording
+    </button>
 
-      <button id="mic">
-        🎙 Start voice recording
-      </button>
-
-      <button
-        id="stopMic"
-        class="ghost"
-        disabled
-      >
-        Stop
-      </button>
-
-    </div>
-
-    <p
-      id="recordStatus"
-      class="muted"
-    ></p>
-
-    <label
-      style="display:block;margin-top:14px"
+    <button
+      id="stopMic"
+      class="ghost"
+      type="button"
+      disabled
     >
-      Add audio
-
-      <input
-        id="audioFile"
-        type="file"
-        accept="audio/*"
-      >
-
-    </label>
+      Stop
+    </button>
 
   </div>
 
+  <p id="recordStatus" class="muted"></p>
 
-  <div class="card">
+  <label style="display:block;margin-top:14px">
+    Add audio
 
-    <h2>
-      Scenes
-    </h2>
+    <input
+      id="audioFile"
+      type="file"
+      accept="audio/*"
+    >
+  </label>
 
-    <div id="scenes"></div>
+</section>
 
-  </div>
+
+<!-- =====================================================
+     SCENES
+===================================================== -->
+
+<section class="card">
+
+  <h2>🎬 Scenes</h2>
+
+  <div id="scenes"></div>
 
 </section>
 
@@ -276,13 +241,9 @@
 
   </div>
 
-
   <div class="controls">
 
-    <button
-      id="prev"
-      class="ghost"
-    >
+    <button id="prev" class="ghost" type="button">
       ←
     </button>
 
@@ -290,42 +251,32 @@
       Scene 0 / 0
     </b>
 
-    <button
-      id="next"
-      class="ghost"
-    >
+    <button id="next" class="ghost" type="button">
       →
     </button>
 
-    <button id="export">
+    <button id="export" type="button">
       Export WebM
     </button>
 
-    <button
-      id="mp4"
-      class="secondary"
-    >
+    <button id="mp4" class="secondary" type="button">
       Export MP4
     </button>
 
   </div>
 
-
-  <div
-    class="row"
-    style="margin-top:12px"
-  >
+  <div class="row" style="margin-top:12px">
 
     <button
       id="downloadGenerated"
       class="ghost"
+      type="button"
       hidden
     >
       📥 Download AI Video
     </button>
 
   </div>
-
 
   <p class="muted">
     MP4 conversion uses the Node server.
@@ -341,20 +292,14 @@
 
 <section class="card">
 
-  <h2>
-    🎬 Generated video
-  </h2>
+  <h2>🎬 Generated video</h2>
 
   <video
     id="generatedVideo"
     controls
     playsinline
     hidden
-    style="
-      width:100%;
-      max-height:650px;
-      border-radius:18px;
-    "
+    style="width:100%;max-height:650px;border-radius:18px"
   ></video>
 
 </section>
@@ -366,16 +311,11 @@
 
 <section class="card">
 
-  <h2>
-    Projects
-  </h2>
+  <h2>Projects</h2>
 
   <div class="row">
 
-    <button
-      id="save"
-      class="ghost"
-    >
+    <button id="save" class="ghost" type="button">
       Save project JSON
     </button>
 
@@ -387,7 +327,6 @@
         type="file"
         accept="application/json"
       >
-
     </label>
 
   </div>

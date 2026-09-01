@@ -1,0 +1,21 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1020"><link rel="manifest" href="/manifest.json"><link rel="stylesheet" href="/styles.css">
+<title>CreatorAI Studio Pro</title></head><body>
+<header><div class="brand"><span class="logo">✦</span><b>CreatorAI Studio Pro</b></div><button id="installBtn" class="ghost" hidden>Install App</button></header>
+<main>
+<section class="hero card"><span class="pill">AI CREATOR WORKSPACE</span><h1>Prompt → Story → Voice → Video</h1>
+<p>Create reels, YouTube videos, statuses and stories from one workspace.</p>
+<textarea id="prompt" placeholder="Example: Create a 30-second energetic reel about 3 AI tools creators need in 2026."></textarea>
+<div class="row"><select id="format"><option value="reel">Reel / Short 9:16</option><option value="status">Status / Story 9:16</option><option value="youtube">YouTube 16:9</option><option value="long">Long video 16:9</option></select><button id="generate">Generate with AI Brain</button></div>
+<div id="status" class="status">Ready.</div></section>
+<section class="grid"><div class="card"><h2>Voice & recording</h2><p class="muted">Record your own voice or add an audio file.</p>
+<div class="row"><button id="mic">🎙 Start voice recording</button><button id="stopMic" class="ghost" disabled>Stop</button></div>
+<audio id="audio" controls hidden></audio><label>Add audio<input id="audioFile" type="file" accept="audio/*"></label></div>
+<div class="card"><h2>Scenes</h2><div id="scenes"></div></div></section>
+<section class="card editor"><div class="previewWrap"><canvas id="canvas" width="720" height="1280"></canvas></div>
+<div class="controls"><button id="prev" class="ghost">←</button><b id="sceneNum">Scene 1</b><button id="next" class="ghost">→</button>
+<button id="export">Export WebM</button><button id="mp4" class="secondary">Export MP4</button></div>
+<p class="muted">MP4 uses the included Node server. GitHub Pages alone cannot run this server endpoint.</p></section>
+<section class="card"><h2>Projects</h2><div class="row"><button id="save" class="ghost">Save project JSON</button><label>Load project JSON<input id="load" type="file" accept="application/json"></label></div></section>
+</main><script src="/app.js"></script></body></html>

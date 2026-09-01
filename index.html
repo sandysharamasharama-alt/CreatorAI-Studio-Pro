@@ -1,21 +1,402 @@
-<!doctype html><html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#0b1020"><link rel="manifest" href="/manifest.json"><link rel="stylesheet" href="/styles.css">
-<title>CreatorAI Studio Pro</title></head><body>
-<header><div class="brand"><span class="logo">✦</span><b>CreatorAI Studio Pro</b></div><button id="installBtn" class="ghost" hidden>Install App</button></header>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1020">
+
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/styles.css">
+
+<title>CreatorAI Studio Pro</title>
+</head>
+
+<body>
+
+<header>
+  <div class="brand">
+    <span class="logo">✦</span>
+    <b>CreatorAI Studio Pro</b>
+  </div>
+
+  <button id="installBtn" class="ghost" hidden>
+    Install App
+  </button>
+</header>
+
 <main>
-<section class="hero card"><span class="pill">AI CREATOR WORKSPACE</span><h1>Prompt → Story → Voice → Video</h1>
-<p>Create reels, YouTube videos, statuses and stories from one workspace.</p>
-<textarea id="prompt" placeholder="Example: Create a 30-second energetic reel about 3 AI tools creators need in 2026."></textarea>
-<div class="row"><select id="format"><option value="reel">Reel / Short 9:16</option><option value="status">Status / Story 9:16</option><option value="youtube">YouTube 16:9</option><option value="long">Long video 16:9</option></select><button id="generate">Generate with AI Brain</button></div>
-<div id="status" class="status">Ready.</div></section>
-<section class="grid"><div class="card"><h2>Voice & recording</h2><p class="muted">Record your own voice or add an audio file.</p>
-<div class="row"><button id="mic">🎙 Start voice recording</button><button id="stopMic" class="ghost" disabled>Stop</button></div>
-<audio id="audio" controls hidden></audio><label>Add audio<input id="audioFile" type="file" accept="audio/*"></label></div>
-<div class="card"><h2>Scenes</h2><div id="scenes"></div></div></section>
-<section class="card editor"><div class="previewWrap"><canvas id="canvas" width="720" height="1280"></canvas></div>
-<div class="controls"><button id="prev" class="ghost">←</button><b id="sceneNum">Scene 1</b><button id="next" class="ghost">→</button>
-<button id="export">Export WebM</button><button id="mp4" class="secondary">Export MP4</button></div>
-<p class="muted">MP4 uses the included Node server. GitHub Pages alone cannot run this server endpoint.</p></section>
-<section class="card"><h2>Projects</h2><div class="row"><button id="save" class="ghost">Save project JSON</button><label>Load project JSON<input id="load" type="file" accept="application/json"></label></div></section>
-</main><script src="/app.js"></script></body></html>
+
+<!-- =====================================================
+     AI CREATOR WORKSPACE
+===================================================== -->
+
+<section class="hero card">
+
+  <span class="pill">
+    AI CREATOR WORKSPACE
+  </span>
+
+  <h1>
+    Prompt → Story → Voice → Video
+  </h1>
+
+  <p>
+    Create reels, YouTube videos, statuses and stories
+    from one workspace.
+  </p>
+
+  <textarea
+    id="prompt"
+    placeholder="Example: Create a 30-second energetic reel about 5 useful AI tools for creators in 2026. Include a strong hook, short scenes, captions and a call to action."
+  ></textarea>
+
+  <div class="row">
+
+    <select id="format">
+
+      <option value="reel">
+        Reel / Short 9:16
+      </option>
+
+      <option value="status">
+        Status / Story 9:16
+      </option>
+
+      <option value="youtube">
+        YouTube 16:9
+      </option>
+
+      <option value="long">
+        Long video 16:9
+      </option>
+
+    </select>
+
+    <button id="generate">
+      Generate with AI Brain
+    </button>
+
+  </div>
+
+  <div id="status" class="status">
+    Ready.
+  </div>
+
+</section>
+
+
+<!-- =====================================================
+     AI VOICE
+===================================================== -->
+
+<section class="card">
+
+  <h2>
+    🤖 AI Voice
+  </h2>
+
+  <p class="muted">
+    Choose an AI-generated voice.
+    Microphone recording is optional.
+  </p>
+
+  <div class="row">
+
+    <label style="flex:1">
+
+      AI Voice
+
+      <select
+        id="aiVoice"
+        style="width:100%"
+      >
+
+        <option value="en-US-AndrewMultilingualNeural">
+          English — Andrew
+        </option>
+
+        <option value="en-US-AvaMultilingualNeural">
+          English — Ava
+        </option>
+
+        <option value="en-US-BrianMultilingualNeural">
+          English — Brian
+        </option>
+
+        <option value="en-US-EmmaMultilingualNeural">
+          English — Emma
+        </option>
+
+        <option value="hi-IN-MadhurNeural">
+          Hindi — Madhur
+        </option>
+
+        <option value="hi-IN-SwaraNeural">
+          Hindi — Swara
+        </option>
+
+      </select>
+
+    </label>
+
+
+    <label style="width:150px">
+
+      Speed
+
+      <select
+        id="voiceSpeed"
+        style="width:100%"
+      >
+
+        <option value="0.9">
+          Slow
+        </option>
+
+        <option value="1" selected>
+          Normal
+        </option>
+
+        <option value="1.1">
+          Fast
+        </option>
+
+        <option value="1.2">
+          Very fast
+        </option>
+
+      </select>
+
+    </label>
+
+  </div>
+
+
+  <div
+    class="row"
+    style="margin-top:12px"
+  >
+
+    <button id="generateVoice">
+      🗣 Generate AI Voice
+    </button>
+
+    <audio
+      id="audio"
+      controls
+      hidden
+      style="width:100%"
+    ></audio>
+
+  </div>
+
+</section>
+
+
+<!-- =====================================================
+     RECORDING + SCENES
+===================================================== -->
+
+<section class="grid">
+
+  <div class="card">
+
+    <h2>
+      Voice & recording
+    </h2>
+
+    <p class="muted">
+      Record your own voice or add an audio file
+      instead of AI voice.
+    </p>
+
+    <div class="row">
+
+      <button id="mic">
+        🎙 Start voice recording
+      </button>
+
+      <button
+        id="stopMic"
+        class="ghost"
+        disabled
+      >
+        Stop
+      </button>
+
+    </div>
+
+    <p
+      id="recordStatus"
+      class="muted"
+    ></p>
+
+    <label
+      style="display:block;margin-top:14px"
+    >
+      Add audio
+
+      <input
+        id="audioFile"
+        type="file"
+        accept="audio/*"
+      >
+
+    </label>
+
+  </div>
+
+
+  <div class="card">
+
+    <h2>
+      Scenes
+    </h2>
+
+    <div id="scenes"></div>
+
+  </div>
+
+</section>
+
+
+<!-- =====================================================
+     VIDEO EDITOR
+===================================================== -->
+
+<section class="card editor">
+
+  <div class="previewWrap">
+
+    <canvas
+      id="canvas"
+      width="720"
+      height="1280"
+    ></canvas>
+
+  </div>
+
+
+  <div class="controls">
+
+    <button
+      id="prev"
+      class="ghost"
+    >
+      ←
+    </button>
+
+    <b id="sceneNum">
+      Scene 0 / 0
+    </b>
+
+    <button
+      id="next"
+      class="ghost"
+    >
+      →
+    </button>
+
+    <button id="export">
+      Export WebM
+    </button>
+
+    <button
+      id="mp4"
+      class="secondary"
+    >
+      Export MP4
+    </button>
+
+  </div>
+
+
+  <div
+    class="row"
+    style="margin-top:12px"
+  >
+
+    <button
+      id="downloadGenerated"
+      class="ghost"
+      hidden
+    >
+      📥 Download AI Video
+    </button>
+
+  </div>
+
+
+  <p class="muted">
+    MP4 conversion uses the Node server.
+    GitHub Pages alone cannot run this server endpoint.
+  </p>
+
+</section>
+
+
+<!-- =====================================================
+     GENERATED VIDEO
+===================================================== -->
+
+<section class="card">
+
+  <h2>
+    🎬 Generated video
+  </h2>
+
+  <video
+    id="generatedVideo"
+    controls
+    playsinline
+    hidden
+    style="
+      width:100%;
+      max-height:650px;
+      border-radius:18px;
+    "
+  ></video>
+
+</section>
+
+
+<!-- =====================================================
+     PROJECTS
+===================================================== -->
+
+<section class="card">
+
+  <h2>
+    Projects
+  </h2>
+
+  <div class="row">
+
+    <button
+      id="save"
+      class="ghost"
+    >
+      Save project JSON
+    </button>
+
+    <label>
+      Load project JSON
+
+      <input
+        id="load"
+        type="file"
+        accept="application/json"
+      >
+
+    </label>
+
+  </div>
+
+</section>
+
+</main>
+
+<script src="/app.js"></script>
+
+</body>
+</html>

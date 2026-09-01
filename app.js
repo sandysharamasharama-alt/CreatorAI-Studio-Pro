@@ -1,26 +1,118 @@
-const $=id=>document.getElementById(id);
-let project={title:"",format:"reel",aspectRatio:"9:16",scenes:[],voiceScript:""},index=0,recording=null,chunks=[],recordedAudio=null,audioFile=null;
-const canvas=$("canvas"),ctx=canvas.getContext("2d");
-function resize(){let w=project.aspectRatio==="16:9";canvas.width=w?1280:720;canvas.height=w?720:1280}
-function wrap(t,x,y,max,lh){let line="";for(const word of String(t).split(/\s+/)){let test=line?line+" "+word:word;if(ctx.measureText(test).width>max&&line){ctx.fillText(line,x,y);line=word;y+=lh}else line=test}if(line)ctx.fillText(line,x,y)}
-function draw(){resize();let s=project.scenes[index]||{headline:"Create your first video",body:"Type a prompt above."};
-let g=ctx.createLinearGradient(0,0,canvas.width,canvas.height);g.addColorStop(0,"#071a2a");g.addColorStop(.55,"#07111f");g.addColorStop(1,"#03050a");ctx.fillStyle=g;ctx.fillRect(0,0,canvas.width,canvas.height);
-ctx.strokeStyle="#123b4a";ctx.globalAlpha=.5;for(let x=0;x<canvas.width;x+=80){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke()}for(let y=0;y<canvas.height;y+=80){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke()}ctx.globalAlpha=1;
-ctx.fillStyle="#28d5f5";ctx.roundRect(45,45,260,54,27);ctx.fill();ctx.fillStyle="#fff";ctx.font="700 24px system-ui";ctx.fillText("CREATORAI • "+project.aspectRatio,70,80);
-ctx.fillStyle="#fff";ctx.font=`800 ${Math.round(canvas.width*.065)}px system-ui`;wrap(s.headline,70,canvas.height*.45,canvas.width-140,Math.round(canvas.width*.065)*1.15);
-ctx.fillStyle="#b8c2d5";ctx.font=`500 ${Math.round(canvas.width*.028)}px system-ui`;wrap(s.body,70,canvas.height*.70,canvas.width-140,Math.round(canvas.width*.028)*1.5);
-ctx.fillStyle="#28d5f5";ctx.fillRect(70,canvas.height-80,canvas.width-140,6);ctx.fillStyle="#d7dbea";ctx.font="600 18px system-ui";ctx.fillText("FOLLOW • SAVE • SHARE",70,canvas.height-105);
-$("sceneNum").textContent=`Scene ${index+1} / ${project.scenes.length||1}`}
-function esc(x){return String(x).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function render(){ $("scenes").innerHTML=project.scenes.map((s,i)=>`<div class="scene ${i===index?"active":""}" data-i="${i}"><b>${i+1}. ${esc(s.headline)}</b><small>${s.duration}s</small></div>`).join("");document.querySelectorAll(".scene").forEach(e=>e.onclick=()=>{index=+e.dataset.i;render()});draw()}
-$("generate").onclick=async()=>{let p=$("prompt").value.trim();if(!p)return $("status").textContent="Write a prompt first.";$("status").textContent="AI Brain is planning…";try{let r=await fetch("/api/ai/plan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:p,format:$("format").value})});project=await r.json();index=0;render();$("status").textContent="Project generated. Add voice and export."}catch(e){$("status").textContent="Open this project through the Node server."}};
-$("prev").onclick=()=>{if(project.scenes.length){index=(index-1+project.scenes.length)%project.scenes.length;render()}};$("next").onclick=()=>{if(project.scenes.length){index=(index+1)%project.scenes.length;render()}};
-$("mic").onclick=async()=>{try{let stream=await navigator.mediaDevices.getUserMedia({audio:true});chunks=[];recording=new MediaRecorder(stream);recording.ondataavailable=e=>chunks.push(e.data);recording.onstop=()=>{recordedAudio=new Blob(chunks,{type:"audio/webm"});$("audio").src=URL.createObjectURL(recordedAudio);$("audio").hidden=false;stream.getTracks().forEach(t=>t.stop());$("status").textContent="Voice recorded."};recording.start();$("mic").disabled=true;$("stopMic").disabled=false;$("status").textContent="Recording…"}catch{$("status").textContent="Microphone permission denied."}};
-$("stopMic").onclick=()=>{if(recording){recording.stop();$("mic").disabled=false;$("stopMic").disabled=true}};$("audioFile").onchange=e=>{audioFile=e.target.files[0]||null;if(audioFile){$("audio").src=URL.createObjectURL(audioFile);$("audio").hidden=false}};
-async function recordVideo(){draw();let stream=canvas.captureStream(30),blobAudio=recordedAudio||audioFile;if(blobAudio)try{let ab=await blobAudio.arrayBuffer(),ac=new AudioContext(),buf=await ac.decodeAudioData(ab),src=ac.createBufferSource(),dest=ac.createMediaStreamDestination();src.buffer=buf;src.connect(dest);src.start();dest.stream.getAudioTracks().forEach(t=>stream.addTrack(t))}catch{}let mime=MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")?"video/webm;codecs=vp9,opus":"video/webm",rec=new MediaRecorder(stream,{mimeType:mime}),out=[];rec.ondataavailable=e=>out.push(e.data);let done=new Promise(r=>rec.onstop=()=>r(new Blob(out,{type:"video/webm"})));rec.start();for(let i=0;i<project.scenes.length;i++){index=i;render();await new Promise(r=>setTimeout(r,(project.scenes[i].duration||4)*1000))}rec.stop();return done}
-$("export").onclick=async()=>{if(!project.scenes.length)return $("status").textContent="Generate a project first.";$("status").textContent="Rendering…";try{let b=await recordVideo(),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="creatorai-video.webm";a.click();$("status").textContent="WebM exported."}catch(e){$("status").textContent="Export failed."}};
-$("mp4").onclick=async()=>{if(!project.scenes.length)return $("status").textContent="Generate a project first.";$("status").textContent="Rendering and converting to MP4…";try{let b=await recordVideo(),fd=new FormData();fd.append("video",b,"video.webm"),r=await fetch("/api/convert/mp4",{method:"POST",body:fd});if(!r.ok)throw 0;let out=await r.blob(),a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="creatorai-video.mp4";a.click();$("status").textContent="MP4 exported."}catch{$("status").textContent="MP4 needs the Node server."}};
-$("save").onclick=()=>{let b=new Blob([JSON.stringify(project,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="creatorai-project.json";a.click()};
-$("load").onchange=async e=>{try{project=JSON.parse(await e.target.files[0].text());index=0;render();$("status").textContent="Project loaded."}catch{$("status").textContent="Invalid project."}};
-let deferred;addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferred=e;$("installBtn").hidden=false});$("installBtn").onclick=async()=>{if(deferred){deferred.prompt();deferred=null}};
-if("serviceWorker"in navigator)navigator.serviceWorker.register("/sw.js");render();
+$("mic").onclick = async () => {
+  try {
+    // Check browser support
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      $("status").textContent =
+        "Microphone is not supported in this browser.";
+      return;
+    }
+
+    // Check secure connection
+    if (location.protocol !== "https:" && location.hostname !== "localhost") {
+      $("status").textContent =
+        "Microphone requires HTTPS. Open the Render HTTPS website.";
+      return;
+    }
+
+    $("status").textContent = "Requesting microphone permission…";
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
+    });
+
+    chunks = [];
+
+    let mimeType = "audio/webm";
+
+    if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+      mimeType = "audio/webm;codecs=opus";
+    } else if (MediaRecorder.isTypeSupported("audio/webm")) {
+      mimeType = "audio/webm";
+    }
+
+    recording = new MediaRecorder(stream, {
+      mimeType: mimeType
+    });
+
+    recording.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) {
+        chunks.push(event.data);
+      }
+    };
+
+    recording.onerror = (event) => {
+      console.error("Recorder error:", event);
+      $("status").textContent = "Recording error. Please try again.";
+    };
+
+    recording.onstop = () => {
+      recordedAudio = new Blob(chunks, {
+        type: mimeType
+      });
+
+      if (recordedAudio.size > 0) {
+        const url = URL.createObjectURL(recordedAudio);
+
+        $("audio").src = url;
+        $("audio").hidden = false;
+
+        $("status").textContent =
+          "✅ Voice recorded successfully!";
+      } else {
+        $("status").textContent =
+          "No audio was recorded.";
+      }
+
+      stream.getTracks().forEach(track => track.stop());
+
+      recording = null;
+      chunks = [];
+
+      $("mic").disabled = false;
+      $("stopMic").disabled = true;
+    };
+
+    recording.start(250);
+
+    $("mic").disabled = true;
+    $("stopMic").disabled = false;
+
+    $("status").textContent =
+      "🔴 Recording… Speak now.";
+      
+  } catch (error) {
+    console.error("Microphone error:", error);
+
+    $("mic").disabled = false;
+    $("stopMic").disabled = true;
+
+    if (error.name === "NotAllowedError") {
+      $("status").textContent =
+        "❌ Microphone blocked. Allow Microphone in Chrome site permissions, then reload.";
+    } else if (error.name === "NotFoundError") {
+      $("status").textContent =
+        "❌ No microphone was found on this device.";
+    } else if (error.name === "NotReadableError") {
+      $("status").textContent =
+        "❌ Microphone is being used by another app.";
+    } else if (error.name === "SecurityError") {
+      $("status").textContent =
+        "❌ Browser security blocked microphone access.";
+    } else {
+      $("status").textContent =
+        "❌ Microphone error: " + error.name;
+    }
+  }
+};
+
+
+$("stopMic").onclick = () => {
+  if (recording && recording.state !== "inactive") {
+    $("status").textContent = "Finishing recording…";
+    recording.stop();
+  }
+};

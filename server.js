@@ -19,7 +19,7 @@ const upload = multer({ dest: tmp });
 app.use(express.json({ limit: "10mb" }));
 
 // Frontend
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(__dirname));
 
 // Health check
 app.get("/api/health", (_, res) => {
@@ -141,7 +141,7 @@ app.post("/api/convert/mp4", upload.single("video"), (req, res) => {
 // SPA fallback — Express 5 compatible
 app.get("/{*splat}", (_, res) => {
   res.sendFile(
-    path.join(__dirname, "public", "index.html")
+    path.join(__dirname,  "index.html")
   );
 });
 

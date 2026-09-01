@@ -15,12 +15,19 @@ let project = {
   videoUrl: ""
 };
 
-let index = 0;
-let generatedVoiceBlob = null;
 
+let index = 0;
+
+// AI-generated voice
+let generatedVoiceBlob = null;
+let generatedVoiceUrl = "";
+
+// Automatic video generation
+let generatingVideo = false;
+
+// User recording is NOT required
 let recording = null;
 let chunks = [];
-
 const canvas = $("canvas");
 const ctx = canvas
   ? canvas.getContext("2d")

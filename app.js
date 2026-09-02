@@ -1,85 +1,168 @@
-const $ = id =>
-  document.getElementById(id);
+/* =====================================================
+   CREATORAI STUDIO PRO
+   FRONTEND v4.0
+===================================================== */
+
+const $ =
+  id =>
+    document.getElementById(
+      id
+    );
+
+
+/* =====================================================
+   PROJECT
+===================================================== */
 
 let project = {
-  title: "",
-  format: "reel",
-  aspectRatio: "9:16",
-  scenes: [],
-  voiceScript: "",
-  voiceUrl: "",
-  videoUrl: "",
-  musicUrl: "",
-  voice: "",
-  voiceSpeed: 1,
-  duration: 0
+
+  title:
+    "",
+
+  format:
+    "reel",
+
+  aspectRatio:
+    "9:16",
+
+  scenes:
+    [],
+
+  voiceScript:
+    "",
+
+  voiceUrl:
+    "",
+
+  videoUrl:
+    "",
+
+  voice:
+    "",
+
+  voiceSpeed:
+    1
+
 };
 
-let index = 0;
 
-let recording = null;
-let chunks = [];
+let index =
+  0;
 
-let generatedVoiceBlob = null;
-let generatedVoiceUrl = "";
 
-const canvas = $("canvas");
+let generatedVoiceBlob =
+  null;
+
+
+let generatedVoiceUrl =
+  "";
+
+
+let recording =
+  null;
+
+
+let chunks =
+  [];
+
+
+const canvas =
+  $("canvas");
+
 
 const ctx =
-  canvas?.getContext("2d");
+  canvas
+    ? canvas.getContext(
+        "2d"
+      )
+    : null;
+
 
 /* =====================================================
    STATUS
 ===================================================== */
 
-function status(message) {
-  if ($("status")) {
-    $("status").textContent =
-      message;
+function status(
+  message
+) {
+
+  if (
+    $("status")
+  ) {
+
+    $("status")
+      .textContent =
+        message;
+
   }
+
 }
+
 
 /* =====================================================
    FORMAT
 ===================================================== */
 
 function updateFormat() {
+
   const format =
     $("format")?.value ||
     "reel";
 
+
   project.format =
     format;
 
+
   project.aspectRatio =
-    format === "youtube" ||
-    format === "long"
+    (
+      format === "youtube" ||
+      format === "long"
+    )
       ? "16:9"
       : "9:16";
 
+
   draw();
+
 }
 
+
 /* =====================================================
-   CANVAS
+   CANVAS SIZE
 ===================================================== */
 
-function resizeCanvas() {
-  if (!canvas) {
+function resize() {
+
+  if (
+    !canvas
+  )
     return;
-  }
+
 
   if (
     project.aspectRatio ===
     "16:9"
   ) {
-    canvas.width = 1280;
-    canvas.height = 720;
+
+    canvas.width =
+      1280;
+
+    canvas.height =
+      720;
+
   } else {
-    canvas.width = 720;
-    canvas.height = 1280;
+
+    canvas.width =
+      720;
+
+    canvas.height =
+      1280;
+
   }
+
 }
+
 
 /* =====================================================
    TEXT WRAP
@@ -92,74 +175,117 @@ function wrapText(
   maxWidth,
   lineHeight
 ) {
-  if (!ctx) {
+
+  if (
+    !ctx
+  )
     return;
-  }
+
 
   const words =
-    String(text || "")
-      .split(/\s+/);
+    String(
+      text || ""
+    )
+      .split(
+        /\s+/
+      );
 
-  let line = "";
-  let currentY = y;
+
+  let line =
+    "";
+
 
   for (
     const word of words
   ) {
+
     const test =
       line
-        ? `${line} ${word}`
+        ? line +
+          " " +
+          word
         : word;
 
+
     if (
-      ctx.measureText(test)
-        .width > maxWidth &&
+      ctx.measureText(
+        test
+      ).width >
+        maxWidth &&
       line
     ) {
+
       ctx.fillText(
         line,
         x,
-        currentY
+        y
       );
 
-      line = word;
 
-      currentY +=
+      line =
+        word;
+
+
+      y +=
         lineHeight;
 
     } else {
-      line = test;
+
+      line =
+        test;
+
     }
+
   }
 
-  if (line) {
+
+  if (
+    line
+  ) {
+
     ctx.fillText(
       line,
       x,
-      currentY
+      y
     );
+
   }
+
 }
 
+
 /* =====================================================
-   DRAW SCENE
+   DRAW
 ===================================================== */
 
 function draw() {
-  if (!canvas || !ctx) {
-    return;
-  }
 
-  resizeCanvas();
+  if (
+    !canvas ||
+    !ctx
+  )
+    return;
+
+
+  resize();
+
 
   const scene =
-    project.scenes[index] || {
+    project.scenes[index] ||
+    {
+
       headline:
         "Create your first video",
 
       body:
         "Enter a topic and let CreatorAI create the video."
+
     };
+
+
+  /* ==============================================
+     BACKGROUND
+  ============================================== */
 
   const gradient =
     ctx.createLinearGradient(
@@ -169,23 +295,28 @@ function draw() {
       canvas.height
     );
 
+
   gradient.addColorStop(
     0,
     "#071a2a"
   );
 
+
   gradient.addColorStop(
-    0.6,
+    0.5,
     "#07111f"
   );
+
 
   gradient.addColorStop(
     1,
     "#03050a"
   );
 
+
   ctx.fillStyle =
     gradient;
+
 
   ctx.fillRect(
     0,
@@ -194,19 +325,25 @@ function draw() {
     canvas.height
   );
 
-  /* Grid */
+
+  /* ==============================================
+     GRID
+  ============================================== */
 
   ctx.strokeStyle =
     "#123b4a";
 
+
   ctx.globalAlpha =
     0.35;
+
 
   for (
     let x = 0;
     x < canvas.width;
     x += 80
   ) {
+
     ctx.beginPath();
 
     ctx.moveTo(
@@ -220,13 +357,16 @@ function draw() {
     );
 
     ctx.stroke();
+
   }
+
 
   for (
     let y = 0;
     y < canvas.height;
     y += 80
   ) {
+
     ctx.beginPath();
 
     ctx.moveTo(
@@ -240,28 +380,59 @@ function draw() {
     );
 
     ctx.stroke();
+
   }
+
 
   ctx.globalAlpha =
     1;
 
-  /* CreatorAI label */
+
+  /* ==============================================
+     CREATORAI BADGE
+  ============================================== */
 
   ctx.fillStyle =
     "#28d5f5";
 
-  ctx.fillRect(
-    45,
-    45,
-    300,
-    58
-  );
+
+  if (
+    ctx.roundRect
+  ) {
+
+    ctx.beginPath();
+
+
+    ctx.roundRect(
+      45,
+      45,
+      300,
+      58,
+      29
+    );
+
+
+    ctx.fill();
+
+  } else {
+
+    ctx.fillRect(
+      45,
+      45,
+      300,
+      58
+    );
+
+  }
+
 
   ctx.fillStyle =
     "#001018";
 
+
   ctx.font =
     "800 23px system-ui";
+
 
   ctx.fillText(
     "CREATORAI • AI VIDEO",
@@ -269,74 +440,135 @@ function draw() {
     82
   );
 
-  /* Headline */
+
+  /* ==============================================
+     HEADLINE
+  ============================================== */
 
   ctx.fillStyle =
     "#ffffff";
 
+
   ctx.font =
-    `800 ${Math.round(
-      canvas.width * 0.065
-    )}px system-ui`;
+    `800 ${
+      Math.round(
+        canvas.width *
+        0.065
+      )
+    }px system-ui`;
+
 
   wrapText(
+
     scene.headline,
+
     70,
-    canvas.height * 0.4,
-    canvas.width - 140,
+
+    canvas.height *
+      0.40,
+
+    canvas.width -
+      140,
+
     Math.round(
       canvas.width *
-        0.075
-    )
+      0.065
+    ) * 1.15
+
   );
 
-  /* Body */
+
+  /* ==============================================
+     BODY
+  ============================================== */
 
   ctx.fillStyle =
     "#b8c2d5";
 
+
   ctx.font =
-    `500 ${Math.round(
-      canvas.width * 0.028
-    )}px system-ui`;
+    `500 ${
+      Math.round(
+        canvas.width *
+        0.028
+      )
+    }px system-ui`;
+
 
   wrapText(
+
     scene.body,
+
     70,
-    canvas.height * 0.67,
-    canvas.width - 140,
+
+    canvas.height *
+      0.67,
+
+    canvas.width -
+      140,
+
     Math.round(
       canvas.width *
-        0.042
-    )
+      0.028
+    ) * 1.5
+
   );
 
-  /* Bottom bar */
+
+  /* ==============================================
+     BOTTOM
+  ============================================== */
 
   ctx.fillStyle =
     "#28d5f5";
 
+
   ctx.fillRect(
+
     70,
-    canvas.height - 80,
-    canvas.width - 140,
+
+    canvas.height -
+      80,
+
+    canvas.width -
+      140,
+
     6
+
   );
+
 
   ctx.fillStyle =
     "#d7dbea";
 
+
   ctx.font =
     "600 18px system-ui";
 
+
   ctx.fillText(
+
     "FOLLOW • SAVE • SHARE",
+
     70,
-    canvas.height - 105
+
+    canvas.height -
+      105
+
   );
 
-  if ($("sceneNum")) {
-    $("sceneNum").textContent =
+
+  /* ==============================================
+     SCENE NUMBER
+  ============================================== */
+
+  if (
+    $("sceneNum")
+  ) {
+
+    $("sceneNum")
+      .textContent =
+
       `Scene ${
         project.scenes.length
           ? index + 1
@@ -344,45 +576,73 @@ function draw() {
       } / ${
         project.scenes.length
       }`;
+
   }
+
 }
+
 
 /* =====================================================
    ESCAPE HTML
 ===================================================== */
 
-function escapeHTML(value) {
+function esc(
+  value
+) {
+
   return String(
     value || ""
-  ).replace(
-    /[&<>"']/g,
-    char =>
-      ({
-        "&":
-          "&amp;",
-        "<":
-          "&lt;",
-        ">":
-          "&gt;",
-        '"':
-          "&quot;",
-        "'":
-          "&#39;"
-      })[char]
-  );
+  )
+    .replace(
+      /[&<>"']/g,
+      char =>
+        ({
+
+          "&":
+            "&amp;",
+
+          "<":
+            "&lt;",
+
+          ">":
+            "&gt;",
+
+          '"':
+            "&quot;",
+
+          "'":
+            "&#39;"
+
+        })[
+          char
+        ]
+
+    );
+
 }
+
 
 /* =====================================================
    RENDER
 ===================================================== */
 
 function render() {
-  if ($("scenes")) {
-    $("scenes").innerHTML =
+
+  if (
+    $("scenes")
+  ) {
+
+    $("scenes")
+      .innerHTML =
+
       project.scenes
         .map(
-          (scene, i) =>
-            `
+
+          (
+            scene,
+            i
+          ) => `
+
             <div
               class="scene ${
                 i === index
@@ -392,9 +652,10 @@ function render() {
               data-i="${i}"
               style="cursor:pointer"
             >
+
               <b>
                 ${i + 1}.
-                ${escapeHTML(
+                ${esc(
                   scene.headline
                 )}
               </b>
@@ -405,10 +666,14 @@ function render() {
                   4
                 }s
               </small>
+
             </div>
-            `
+
+          `
+
         )
         .join("");
+
 
     document
       .querySelectorAll(
@@ -416,53 +681,30 @@ function render() {
       )
       .forEach(
         element => {
+
           element.onclick =
             () => {
+
               index =
                 Number(
                   element.dataset.i
                 );
 
+
               render();
+
             };
+
         }
       );
+
   }
+
 
   draw();
+
 }
 
-/* =====================================================
-   SAFE JSON FETCH
-===================================================== */
-
-async function jsonFetch(
-  url,
-  options
-) {
-  const response =
-    await fetch(
-      url,
-      options
-    );
-
-  const data =
-    await response
-      .json()
-      .catch(
-        () => ({})
-      );
-
-  if (!response.ok) {
-    throw new Error(
-      data.error ||
-        data.message ||
-        `Server error ${response.status}`
-    );
-  }
-
-  return data;
-}
 
 /* =====================================================
    AI PLAN
@@ -472,25 +714,77 @@ async function createAIPlan(
   prompt,
   format
 ) {
-  return jsonFetch(
-    "/api/ai/plan",
-    {
-      method:
-        "POST",
 
-      headers: {
-        "Content-Type":
-          "application/json"
-      },
+  const response =
+    await fetch(
+      "/api/ai/plan",
+      {
 
-      body:
-        JSON.stringify({
-          prompt,
-          format
-        })
-    }
-  );
+        method:
+          "POST",
+
+        headers: {
+
+          "Content-Type":
+            "application/json"
+
+        },
+
+        body:
+          JSON.stringify({
+
+            prompt,
+
+            format
+
+          })
+
+      }
+    );
+
+
+  if (
+    !response.ok
+  ) {
+
+    let message =
+      "";
+
+
+    try {
+
+      const data =
+        await response.json();
+
+
+      message =
+        data.error ||
+        data.message ||
+        "";
+
+    } catch {}
+
+
+    throw new Error(
+
+      "AI planning failed: " +
+      response.status +
+      (
+        message
+          ? " — " +
+            message
+          : ""
+      )
+
+    );
+
+  }
+
+
+  return response.json();
+
 }
+
 
 /* =====================================================
    AI VOICE
@@ -499,9 +793,11 @@ async function createAIPlan(
 async function createAIVoice(
   text
 ) {
+
   const voice =
     $("aiVoice")?.value ||
-    "en-US-AndrewMultilingualNeural";
+    "en-US-EmmaMultilingualNeural";
+
 
   const speed =
     Number(
@@ -509,156 +805,347 @@ async function createAIVoice(
       1
     );
 
-  const data =
-    await jsonFetch(
+
+  const response =
+    await fetch(
       "/api/ai/voice",
       {
+
         method:
           "POST",
 
         headers: {
+
           "Content-Type":
             "application/json"
+
         },
 
         body:
           JSON.stringify({
+
             text,
+
             voice,
+
             speed
+
           })
+
       }
     );
 
-  Object.assign(
-    project,
-    {
-      voice,
-      voiceSpeed:
-        speed,
-      voiceScript:
-        text,
-      voiceUrl:
-        data.url
-    }
-  );
+
+  const raw =
+    await response.text();
+
+
+  let data =
+    {};
+
+
+  try {
+
+    data =
+      raw
+        ? JSON.parse(
+            raw
+          )
+        : {};
+
+  } catch {
+
+    data = {
+      error:
+        raw
+    };
+
+  }
+
+
+  if (
+    !response.ok
+  ) {
+
+    throw new Error(
+
+      data.error ||
+      data.message ||
+      `AI voice failed: ${response.status}`
+
+    );
+
+  }
+
+
+  if (
+    !data.url
+  ) {
+
+    throw new Error(
+      "AI voice server returned no audio URL."
+    );
+
+  }
+
+
+  project.voice =
+    voice;
+
+
+  project.voiceSpeed =
+    speed;
+
+
+  project.voiceScript =
+    text;
+
+
+  project.voiceUrl =
+    data.url;
+
 
   generatedVoiceUrl =
     data.url;
 
-  if ($("audio")) {
+
+  if (
+    $("audio")
+  ) {
+
     $("audio").src =
       data.url;
+
 
     $("audio").hidden =
       false;
 
+
     $("audio").load();
+
   }
 
+
   return data;
+
 }
 
+
 /* =====================================================
-   GENERATE VOICE BUTTON
+   AI VOICE BUTTON
 ===================================================== */
 
+const generateVoiceButton =
+  $("generateVoice");
+
+
 if (
-  $("generateVoice")
+  generateVoiceButton
 ) {
-  $("generateVoice")
-    .onclick =
+
+  generateVoiceButton.onclick =
     async () => {
+
       const voiceText =
-        $("voiceText")
-          ?.value
-          ?.trim() ||
-        project.voiceScript ||
-        $("prompt")
-          ?.value
-          ?.trim() ||
+        $("voiceText");
+
+
+      const voiceStatus =
+        $("voiceStatus");
+
+
+      let text =
+        voiceText?.value?.trim() ||
         "";
 
-      if (!voiceText) {
-        status(
-          "❌ ਪਹਿਲਾਂ text ਜਾਂ prompt ਲਿਖੋ।"
-        );
 
-        return;
+      if (
+        !text
+      ) {
+
+        text =
+          project.voiceScript ||
+          $("prompt")
+            ?.value
+            ?.trim() ||
+          "";
+
       }
 
+
+      if (
+        !text
+      ) {
+
+        status(
+          "❌ ਪਹਿਲਾਂ voice text ਜਾਂ prompt ਲਿਖੋ।"
+        );
+
+
+        if (
+          voiceStatus
+        ) {
+
+          voiceStatus.textContent =
+            "❌ ਪਹਿਲਾਂ text ਲਿਖੋ।";
+
+        }
+
+
+        return;
+
+      }
+
+
       try {
-        $("generateVoice")
-          .disabled =
+
+        generateVoiceButton.disabled =
           true;
+
+
+        generateVoiceButton.textContent =
+          "⏳ Generating AI Voice...";
+
 
         status(
           "🗣️ AI voice ਬਣ ਰਹੀ ਹੈ..."
         );
 
-        await createAIVoice(
-          voiceText
-        );
 
-        status(
-          "✅ AI Voice ਤਿਆਰ ਹੈ।"
-        );
+        if (
+          voiceStatus
+        ) {
 
-      } catch (error) {
+          voiceStatus.textContent =
+            "🗣️ AI voice generating...";
+
+        }
+
+
+        const data =
+          await createAIVoice(
+            text
+          );
+
+
+        if (
+          data?.url
+        ) {
+
+          status(
+            "✅ AI Voice ਤਿਆਰ ਹੈ।"
+          );
+
+
+          if (
+            voiceStatus
+          ) {
+
+            voiceStatus.textContent =
+              "✅ AI Voice ਤਿਆਰ ਹੈ। ਤੁਸੀਂ Play ਕਰ ਸਕਦੇ ਹੋ।";
+
+          }
+
+        }
+
+
+      } catch (
+        error
+      ) {
+
         console.error(
+          "AI VOICE ERROR:",
           error
         );
+
 
         status(
           "❌ AI Voice failed: " +
           error.message
         );
 
+
+        if (
+          voiceStatus
+        ) {
+
+          voiceStatus.textContent =
+            "❌ " +
+            error.message;
+
+        }
+
       } finally {
-        $("generateVoice")
-          .disabled =
+
+        generateVoiceButton.disabled =
           false;
+
+
+        generateVoiceButton.textContent =
+          "🗣️ Generate AI Voice";
+
       }
+
     };
+
 }
+
 
 /* =====================================================
    COMPLETE AI VIDEO
 ===================================================== */
 
 async function generateCompleteVideo() {
+
   const prompt =
     $("prompt")
       ?.value
       ?.trim();
+
 
   const format =
     $("format")
       ?.value ||
     "reel";
 
-  if (!prompt) {
+
+  if (
+    !prompt
+  ) {
+
     status(
       "❌ ਪਹਿਲਾਂ topic/prompt ਲਿਖੋ।"
     );
 
     return;
+
   }
 
-  const button =
+
+  const generateButton =
     $("generate");
 
-  if (button) {
-    button.disabled =
-      true;
-  }
 
   try {
-    /* STEP 1 */
+
+    if (
+      generateButton
+    ) {
+
+      generateButton.disabled =
+        true;
+
+    }
+
+
+    /* ==============================================
+       STEP 1
+    ============================================== */
 
     status(
       "🧠 AI script ਬਣਾ ਰਿਹਾ ਹੈ..."
     );
+
 
     const plan =
       await createAIPlan(
@@ -666,75 +1153,125 @@ async function generateCompleteVideo() {
         format
       );
 
+
     project = {
+
       ...project,
+
       ...plan,
 
       format,
 
       aspectRatio:
-        format === "youtube" ||
-        format === "long"
+
+        (
+          format === "youtube" ||
+          format === "long"
+        )
+
           ? "16:9"
+
           : "9:16",
 
       scenes:
+
         Array.isArray(
           plan.scenes
         )
+
           ? plan.scenes
+
           : [],
 
       voiceScript:
         plan.voiceScript ||
         ""
+
     };
 
-    index = 0;
+
+    index =
+      0;
+
 
     render();
 
-    /* STEP 2 */
+
+    /* ==============================================
+       STEP 2
+       AI VOICE
+    ============================================== */
 
     status(
       "🗣️ AI voice ਬਣ ਰਹੀ ਹੈ..."
     );
 
-    const voice =
-      await createAIVoice(
-        project.voiceScript
-      );
 
-    /* STEP 3 */
-
-    status(
-      "🎬 scenes + music + MP4 ਬਣ ਰਹੀ ਹੈ..."
+    await createAIVoice(
+      project.voiceScript
     );
 
-    /*
-     * IMPORTANT:
-     * Send the already generated
-     * plan and voice URL.
-     */
 
-    const video =
-      await jsonFetch(
+    /* ==============================================
+       STEP 3
+       REAL SCENE VIDEO
+    ============================================== */
+
+    status(
+      "🎬 Scenes ਨੂੰ actual video ਵਿੱਚ render ਕੀਤਾ ਜਾ ਰਿਹਾ ਹੈ..."
+    );
+
+
+    const response =
+      await fetch(
         "/api/ai/video",
         {
+
           method:
             "POST",
 
           headers: {
+
             "Content-Type":
               "application/json"
+
           },
 
           body:
             JSON.stringify({
+
               prompt,
+
               format,
 
+              voice:
+                $("aiVoice")
+                  ?.value ||
+                project.voice ||
+                "en-US-EmmaMultilingualNeural",
+
+              voiceSpeed:
+                Number(
+                  $("voiceSpeed")
+                    ?.value ||
+                  1
+                ),
+
+              /*
+                 IMPORTANT:
+                 Send already generated voice.
+              */
+
+              voiceUrl:
+                project.voiceUrl,
+
+              /*
+                 IMPORTANT:
+                 Send already generated plan.
+              */
+
               plan: {
+
                 title:
                   project.title,
 
@@ -743,104 +1280,183 @@ async function generateCompleteVideo() {
 
                 scenes:
                   project.scenes
-              },
 
-              voice:
-                project.voice,
+              }
 
-              voiceSpeed:
-                project.voiceSpeed,
-
-              voiceUrl:
-                voice.url
             })
+
         }
       );
 
-    Object.assign(
-      project,
-      {
-        title:
-          video.title ||
-          project.title,
 
-        scenes:
-          Array.isArray(
-            video.scenes
-          )
-            ? video.scenes
-            : project.scenes,
+    const raw =
+      await response.text();
 
-        voiceScript:
-          video.voiceScript ||
-          project.voiceScript,
 
-        voiceUrl:
-          video.voiceUrl ||
-          project.voiceUrl,
+    let videoData =
+      {};
 
-        musicUrl:
-          video.musicUrl ||
-          "",
 
-        videoUrl:
-          video.videoUrl ||
-          "",
+    try {
 
-        duration:
-          video.duration ||
-          0
-      }
-    );
+      videoData =
+        raw
+          ? JSON.parse(
+              raw
+            )
+          : {};
+
+    } catch {
+
+      videoData = {
+
+        error:
+          raw ||
+          "Invalid server response"
+
+      };
+
+    }
+
+
+    if (
+      !response.ok
+    ) {
+
+      throw new Error(
+
+        videoData.error ||
+        videoData.message ||
+        `Automatic video failed: ${response.status}`
+
+      );
+
+    }
+
+
+    if (
+      !videoData.videoUrl
+    ) {
+
+      throw new Error(
+        "Server ਨੇ video URL ਨਹੀਂ ਭੇਜਿਆ।"
+      );
+
+    }
+
+
+    /* ==============================================
+       UPDATE PROJECT
+    ============================================== */
+
+    project.title =
+      videoData.title ||
+      project.title;
+
+
+    project.scenes =
+      Array.isArray(
+        videoData.scenes
+      )
+
+        ? videoData.scenes
+
+        : project.scenes;
+
+
+    project.voiceScript =
+      videoData.voiceScript ||
+      project.voiceScript;
+
+
+    project.videoUrl =
+      videoData.videoUrl;
+
+
+    project.voiceUrl =
+      videoData.voiceUrl ||
+      project.voiceUrl;
+
 
     render();
+
+
+    /* ==============================================
+       SHOW VIDEO
+    ============================================== */
 
     showGeneratedVideo(
       project.videoUrl
     );
 
+
     status(
-      "✅ Complete! Script + AI Voice + Scenes + Music + MP4 ਤਿਆਰ ਹੈ।"
+      "✅ Complete video ਤਿਆਰ ਹੈ — Script + AI Voice + Scenes + Music + MP4."
     );
 
-  } catch (error) {
+
+  } catch (
+    error
+  ) {
+
     console.error(
-      "VIDEO ERROR:",
+      "COMPLETE VIDEO ERROR:",
       error
     );
 
+
     status(
       "❌ Video generation failed: " +
-        error.message
+      (
+        error.message ||
+        "Unknown error"
+      )
     );
 
+
   } finally {
-    if (button) {
-      button.disabled =
+
+    if (
+      generateButton
+    ) {
+
+      generateButton.disabled =
         false;
+
     }
+
   }
+
 }
+
 
 /* =====================================================
    GENERATE BUTTON
 ===================================================== */
 
-if ($("generate")) {
+if (
   $("generate")
-    .onclick =
+) {
+
+  $("generate").onclick =
     generateCompleteVideo;
+
 }
+
 
 /* =====================================================
-   FORMAT
+   FORMAT CHANGE
 ===================================================== */
 
-if ($("format")) {
+if (
   $("format")
-    .onchange =
+) {
+
+  $("format").onchange =
     updateFormat;
+
 }
+
 
 /* =====================================================
    SHOW GENERATED VIDEO
@@ -849,86 +1465,115 @@ if ($("format")) {
 function showGeneratedVideo(
   url
 ) {
+
   const video =
     $("generatedVideo");
 
-  if (!video || !url) {
+
+  if (
+    !video ||
+    !url
+  )
     return;
-  }
+
 
   video.src =
     url;
 
+
   video.hidden =
     false;
 
+
   video.load();
+
 
   if (
     $("downloadGenerated")
   ) {
+
     $("downloadGenerated")
       .hidden =
-      false;
+        false;
+
   }
+
 }
 
+
 /* =====================================================
-   DOWNLOAD
+   DOWNLOAD GENERATED VIDEO
 ===================================================== */
 
 if (
   $("downloadGenerated")
 ) {
+
   $("downloadGenerated")
     .onclick =
-    () => {
-      if (
-        !project.videoUrl
-      ) {
-        status(
-          "❌ ਪਹਿਲਾਂ video generate ਕਰੋ।"
+      () => {
+
+        if (
+          !project.videoUrl
+        ) {
+
+          status(
+            "❌ ਪਹਿਲਾਂ video generate ਕਰੋ।"
+          );
+
+          return;
+
+        }
+
+
+        const link =
+          document.createElement(
+            "a"
+          );
+
+
+        link.href =
+          project.videoUrl;
+
+
+        link.download =
+          "creatorai-video.mp4";
+
+
+        document.body.appendChild(
+          link
         );
 
-        return;
-      }
 
-      const link =
-        document.createElement(
-          "a"
-        );
+        link.click();
 
-      link.href =
-        project.videoUrl;
 
-      link.download =
-        "creatorai-video.mp4";
+        link.remove();
 
-      document.body.appendChild(
-        link
-      );
+      };
 
-      link.click();
-
-      link.remove();
-    };
 }
+
 
 /* =====================================================
    PREVIOUS
 ===================================================== */
 
-if ($("prev")) {
+if (
   $("prev")
-    .onclick =
+) {
+
+  $("prev").onclick =
     () => {
+
       if (
         !project.scenes.length
-      ) {
+      )
         return;
-      }
+
 
       index =
+
         (
           index -
           1 +
@@ -936,128 +1581,194 @@ if ($("prev")) {
         ) %
         project.scenes.length;
 
+
       render();
+
     };
+
 }
+
 
 /* =====================================================
    NEXT
 ===================================================== */
 
-if ($("next")) {
+if (
   $("next")
-    .onclick =
+) {
+
+  $("next").onclick =
     () => {
+
       if (
         !project.scenes.length
-      ) {
+      )
         return;
-      }
+
 
       index =
+
         (
-          index + 1
+          index +
+          1
         ) %
         project.scenes.length;
 
+
       render();
+
     };
+
 }
+
 
 /* =====================================================
    MICROPHONE
 ===================================================== */
 
-if ($("mic")) {
+if (
   $("mic")
-    .onclick =
+) {
+
+  $("mic").onclick =
     async () => {
+
       try {
+
         if (
           !navigator
             .mediaDevices
             ?.getUserMedia
         ) {
+
           throw new Error(
-            "Microphone is not supported."
+            "Microphone recording is not supported."
           );
+
         }
 
-        chunks = [];
+
+        chunks =
+          [];
+
 
         recording =
           await navigator
             .mediaDevices
             .getUserMedia({
-              audio: true
+              audio:
+                true
             });
+
 
         const mime =
           MediaRecorder
             .isTypeSupported(
               "audio/webm"
             )
+
               ? "audio/webm"
+
               : "";
+
 
         const recorder =
           new MediaRecorder(
+
             recording,
+
             mime
+
               ? {
                   mimeType:
                     mime
                 }
+
               : undefined
+
           );
+
 
         window.__creatorRecorder =
           recorder;
 
+
         recorder.ondataavailable =
           event => {
+
             if (
               event.data &&
               event.data.size
             ) {
+
               chunks.push(
                 event.data
               );
+
             }
+
           };
+
 
         recorder.onstop =
           () => {
+
             const blob =
               new Blob(
                 chunks,
                 {
+
                   type:
                     recorder.mimeType ||
                     "audio/webm"
+
                 }
               );
+
 
             const url =
               URL.createObjectURL(
                 blob
               );
 
+
+            if (
+              $("audio")
+            ) {
+
+              $("audio").src =
+                url;
+
+
+              $("audio").hidden =
+                false;
+
+            }
+
+
             generatedVoiceBlob =
               blob;
+
 
             generatedVoiceUrl =
               url;
 
-            if ($("audio")) {
-              $("audio").src =
-                url;
 
-              $("audio").hidden =
-                false;
+            if (
+              $("recordStatus")
+            ) {
+
+              $("recordStatus")
+                .textContent =
+                "✅ Recording ready.";
+
             }
 
-            if (recording) {
+
+            if (
+              recording
+            ) {
+
               recording
                 .getTracks()
                 .forEach(
@@ -1065,190 +1776,360 @@ if ($("mic")) {
                     track.stop()
                 );
 
+
               recording =
                 null;
+
             }
 
-            if (
-              $("recordStatus")
-            ) {
-              $("recordStatus")
-                .textContent =
-                "✅ Recording ready.";
-            }
           };
 
+
         recorder.start();
+
 
         $("mic").disabled =
           true;
 
-        if ($("stopMic")) {
+
+        if (
+          $("stopMic")
+        ) {
+
           $("stopMic").disabled =
             false;
+
         }
+
 
         if (
           $("recordStatus")
         ) {
+
           $("recordStatus")
             .textContent =
             "🔴 Recording...";
+
         }
 
-      } catch (error) {
+
+      } catch (
+        error
+      ) {
+
         console.error(
           error
         );
 
+
         if (
           $("recordStatus")
         ) {
+
           $("recordStatus")
             .textContent =
-            "❌ " +
+            "❌ Microphone error: " +
             error.message;
+
         }
+
       }
+
     };
+
 }
 
+
 /* =====================================================
-   STOP MIC
+   STOP MICROPHONE
 ===================================================== */
 
-if ($("stopMic")) {
+if (
   $("stopMic")
-    .onclick =
+) {
+
+  $("stopMic").onclick =
     () => {
+
       const recorder =
         window.__creatorRecorder;
+
 
       if (
         recorder &&
         recorder.state !==
           "inactive"
       ) {
+
         recorder.stop();
+
       }
 
-      if ($("mic")) {
+
+      if (
+        $("mic")
+      ) {
+
         $("mic").disabled =
           false;
+
       }
+
 
       $("stopMic").disabled =
         true;
+
     };
+
 }
+
 
 /* =====================================================
    AUDIO FILE
 ===================================================== */
 
-if ($("audioFile")) {
+if (
   $("audioFile")
-    .onchange =
+) {
+
+  $("audioFile").onchange =
     event => {
+
       const file =
         event.target
           .files?.[0];
 
-      if (!file) {
+
+      if (
+        !file
+      )
         return;
-      }
+
 
       const url =
         URL.createObjectURL(
           file
         );
 
+
+      if (
+        $("audio")
+      ) {
+
+        $("audio").src =
+          url;
+
+
+        $("audio").hidden =
+          false;
+
+      }
+
+
       generatedVoiceBlob =
         file;
+
 
       generatedVoiceUrl =
         url;
 
-      if ($("audio")) {
-        $("audio").src =
-          url;
-
-        $("audio").hidden =
-          false;
-      }
 
       if (
         $("recordStatus")
       ) {
+
         $("recordStatus")
           .textContent =
           "✅ Audio file loaded.";
+
       }
+
     };
+
 }
 
+
 /* =====================================================
-   CANVAS VIDEO
+   CANVAS VIDEO RECORDING
 ===================================================== */
 
 async function recordCanvasVideo() {
-  if (!canvas) {
+
+  if (
+    !canvas
+  ) {
+
     throw new Error(
       "Canvas not found."
     );
+
   }
+
 
   if (
     !project.scenes.length
   ) {
+
     throw new Error(
       "No scenes available."
     );
+
   }
 
+
   draw();
+
 
   const stream =
     canvas.captureStream(
       30
     );
 
-  const mime =
+
+  let audioContext =
+    null;
+
+
+  let audioElement =
+    null;
+
+
+  if (
+    project.voiceUrl
+  ) {
+
+    try {
+
+      audioElement =
+        new Audio();
+
+
+      audioElement.src =
+        project.voiceUrl;
+
+
+      audioElement.crossOrigin =
+        "anonymous";
+
+
+      audioElement.preload =
+        "auto";
+
+
+      await audioElement
+        .play()
+        .catch(
+          () => {}
+        );
+
+
+      audioContext =
+        new AudioContext();
+
+
+      const source =
+        audioContext
+          .createMediaElementSource(
+            audioElement
+          );
+
+
+      const destination =
+        audioContext
+          .createMediaStreamDestination();
+
+
+      source.connect(
+        destination
+      );
+
+
+      destination.stream
+        .getAudioTracks()
+        .forEach(
+          track => {
+
+            stream.addTrack(
+              track
+            );
+
+          }
+        );
+
+
+    } catch (
+      error
+    ) {
+
+      console.warn(
+        "Voice could not be attached:",
+        error
+      );
+
+    }
+
+  }
+
+
+  let mime =
+    "video/webm";
+
+
+  if (
     MediaRecorder
       .isTypeSupported(
         "video/webm;codecs=vp9,opus"
       )
-        ? "video/webm;codecs=vp9,opus"
-        : "video/webm";
+  ) {
+
+    mime =
+      "video/webm;codecs=vp9,opus";
+
+  }
+
 
   const recorder =
     new MediaRecorder(
       stream,
       {
-        mimeType: mime
+
+        mimeType:
+          mime
+
       }
     );
 
-  const output = [];
+
+  const output =
+    [];
+
 
   recorder.ondataavailable =
     event => {
+
       if (
         event.data &&
         event.data.size
       ) {
+
         output.push(
           event.data
         );
+
       }
+
     };
+
 
   const finished =
     new Promise(
       resolve => {
+
         recorder.onstop =
           () => {
+
             resolve(
+
               new Blob(
                 output,
                 {
@@ -1256,14 +2137,19 @@ async function recordCanvasVideo() {
                     mime
                 }
               )
+
             );
+
           };
+
       }
     );
+
 
   recorder.start(
     250
   );
+
 
   for (
     let i = 0;
@@ -1271,15 +2157,20 @@ async function recordCanvasVideo() {
       project.scenes.length;
     i++
   ) {
-    index = i;
+
+    index =
+      i;
+
 
     render();
+
 
     const duration =
       Number(
         project.scenes[i]
           .duration
       ) || 4;
+
 
     await new Promise(
       resolve =>
@@ -1289,176 +2180,313 @@ async function recordCanvasVideo() {
             1000
         )
     );
+
   }
+
 
   recorder.stop();
 
+
+  if (
+    audioElement
+  ) {
+
+    try {
+
+      audioElement.pause();
+
+    } catch {}
+
+  }
+
+
+  if (
+    audioContext
+  ) {
+
+    try {
+
+      await audioContext.close();
+
+    } catch {}
+
+  }
+
+
   return finished;
+
 }
+
 
 /* =====================================================
    WEBM EXPORT
 ===================================================== */
 
-if ($("export")) {
+if (
   $("export")
-    .onclick =
+) {
+
+  $("export").onclick =
     async () => {
+
+      if (
+        !project.scenes.length
+      ) {
+
+        status(
+          "Generate a project first."
+        );
+
+        return;
+
+      }
+
+
       try {
+
         status(
           "🎬 Rendering WebM..."
         );
 
+
         const blob =
           await recordCanvasVideo();
+
 
         const url =
           URL.createObjectURL(
             blob
           );
 
+
         const link =
           document.createElement(
             "a"
           );
 
+
         link.href =
           url;
 
+
         link.download =
           "creatorai-video.webm";
+
 
         document.body.appendChild(
           link
         );
 
+
         link.click();
+
 
         link.remove();
 
-        status(
-          "✅ WebM exported."
+
+        setTimeout(
+          () =>
+            URL.revokeObjectURL(
+              url
+            ),
+          5000
         );
 
-      } catch (error) {
+
+        status(
+          "✅ WebM video exported."
+        );
+
+
+      } catch (
+        error
+      ) {
+
         console.error(
           error
         );
 
+
         status(
           "❌ Export failed: " +
-            error.message
+          error.message
         );
+
       }
+
     };
+
 }
+
 
 /* =====================================================
    MP4 EXPORT
 ===================================================== */
 
-if ($("mp4")) {
+if (
   $("mp4")
-    .onclick =
+) {
+
+  $("mp4").onclick =
     async () => {
+
+      if (
+        !project.scenes.length
+      ) {
+
+        status(
+          "Generate a project first."
+        );
+
+        return;
+
+      }
+
+
       try {
+
         status(
           "🎬 Rendering and converting to MP4..."
         );
 
+
         const blob =
           await recordCanvasVideo();
+
 
         const form =
           new FormData();
 
+
         form.append(
+
           "video",
+
           blob,
+
           "creatorai-video.webm"
+
         );
+
 
         const response =
           await fetch(
+
             "/api/convert/mp4",
+
             {
+
               method:
                 "POST",
+
               body:
                 form
+
             }
+
           );
+
 
         if (
           !response.ok
         ) {
-          const data =
-            await response
-              .json()
-              .catch(
-                () => ({})
-              );
+
+          const raw =
+            await response.text();
+
 
           throw new Error(
-            data.error ||
-              `MP4 conversion failed: ${response.status}`
+            raw ||
+            `MP4 conversion failed: ${response.status}`
           );
+
         }
+
 
         const mp4 =
           await response.blob();
+
 
         const url =
           URL.createObjectURL(
             mp4
           );
 
+
         const link =
           document.createElement(
             "a"
           );
 
+
         link.href =
           url;
 
+
         link.download =
           "creatorai-video.mp4";
+
 
         document.body.appendChild(
           link
         );
 
+
         link.click();
 
+
         link.remove();
+
+
+        setTimeout(
+          () =>
+            URL.revokeObjectURL(
+              url
+            ),
+          5000
+        );
+
 
         status(
           "✅ MP4 exported successfully."
         );
 
-      } catch (error) {
+
+      } catch (
+        error
+      ) {
+
         console.error(
           error
         );
 
+
         status(
           "❌ MP4 export failed: " +
-            error.message
+          error.message
         );
+
       }
+
     };
+
 }
+
 
 /* =====================================================
    SAVE PROJECT
 ===================================================== */
 
-if ($("save")) {
+if (
   $("save")
-    .onclick =
+) {
+
+  $("save").onclick =
     () => {
+
       const blob =
         new Blob(
+
           [
             JSON.stringify(
               project,
@@ -1466,143 +2494,207 @@ if ($("save")) {
               2
             )
           ],
+
           {
             type:
               "application/json"
           }
+
         );
+
 
       const url =
         URL.createObjectURL(
           blob
         );
 
+
       const link =
         document.createElement(
           "a"
         );
 
+
       link.href =
         url;
 
+
       link.download =
         "creatorai-project.json";
+
 
       document.body.appendChild(
         link
       );
 
+
       link.click();
+
 
       link.remove();
 
-      URL.revokeObjectURL(
-        url
+
+      setTimeout(
+        () =>
+          URL.revokeObjectURL(
+            url
+          ),
+        5000
       );
+
 
       status(
         "✅ Project saved."
       );
+
     };
+
 }
+
 
 /* =====================================================
    LOAD PROJECT
 ===================================================== */
 
-if ($("load")) {
+if (
   $("load")
-    .onchange =
+) {
+
+  $("load").onchange =
     async event => {
+
       try {
+
         const file =
           event.target
             .files?.[0];
 
-        if (!file) {
+
+        if (
+          !file
+        )
           return;
-        }
+
+
+        const loaded =
+          JSON.parse(
+            await file.text()
+          );
+
 
         project = {
+
           ...project,
-          ...JSON.parse(
-            await file.text()
-          )
+
+          ...loaded
+
         };
+
 
         if (
           !Array.isArray(
             project.scenes
           )
         ) {
+
           project.scenes =
             [];
+
         }
 
-        index = 0;
+
+        index =
+          0;
+
 
         if (
-          $("format")
+          $("format") &&
+          project.format
         ) {
+
           $("format").value =
-            project.format ||
-            "reel";
+            project.format;
+
         }
+
 
         if (
           $("aiVoice") &&
           project.voice
         ) {
+
           $("aiVoice").value =
             project.voice;
+
         }
+
 
         if (
-          $("voiceSpeed") &&
-          project.voiceSpeed
+          $("voiceSpeed")
         ) {
+
           $("voiceSpeed").value =
             String(
-              project.voiceSpeed
+              project.voiceSpeed ||
+              1
             );
+
         }
 
+
         render();
+
 
         if (
           project.videoUrl
         ) {
+
           showGeneratedVideo(
             project.videoUrl
           );
+
         }
+
 
         if (
           project.voiceUrl &&
           $("audio")
         ) {
+
           $("audio").src =
             project.voiceUrl;
 
+
           $("audio").hidden =
             false;
+
         }
+
 
         status(
           "✅ Project loaded."
         );
 
-      } catch (error) {
+
+      } catch (
+        error
+      ) {
+
         console.error(
           error
         );
 
+
         status(
           "❌ Invalid project file."
         );
+
       }
+
     };
+
 }
+
 
 /* =====================================================
    PWA INSTALL
@@ -1611,40 +2703,58 @@ if ($("load")) {
 let deferredInstall =
   null;
 
+
 window.addEventListener(
   "beforeinstallprompt",
   event => {
+
     event.preventDefault();
+
 
     deferredInstall =
       event;
 
-    if ($("installBtn")) {
+
+    if (
+      $("installBtn")
+    ) {
+
       $("installBtn").hidden =
         false;
+
     }
+
   }
 );
 
-if ($("installBtn")) {
+
+if (
   $("installBtn")
-    .onclick =
+) {
+
+  $("installBtn").onclick =
     async () => {
+
       if (
         !deferredInstall
-      ) {
+      )
         return;
-      }
+
 
       deferredInstall.prompt();
+
 
       deferredInstall =
         null;
 
+
       $("installBtn").hidden =
         true;
+
     };
+
 }
+
 
 /* =====================================================
    SERVICE WORKER
@@ -1654,8 +2764,11 @@ if (
   "serviceWorker" in
   navigator
 ) {
+
   navigator.serviceWorker
-    .register("/sw.js")
+    .register(
+      "/sw.js"
+    )
     .catch(
       error =>
         console.warn(
@@ -1663,11 +2776,14 @@ if (
           error
         )
     );
+
 }
+
 
 /* =====================================================
    START
 ===================================================== */
 
 updateFormat();
+
 render();

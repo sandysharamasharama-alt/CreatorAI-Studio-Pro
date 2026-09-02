@@ -1,4 +1,5 @@
 import "dotenv/config";
+
 import express from "express";
 import multer from "multer";
 import fs from "fs";
@@ -6,245 +7,610 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { execFile } from "child_process";
 import { promisify } from "util";
+
 import ffmpegPath from "ffmpeg-static";
 import { EdgeTTS } from "edge-tts-universal";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const exec = promisify(execFile);
-const app = express();
-const PORT = Number(process.env.PORT || 3000);
 
-const tmp = path.join(__dirname, "tmp");
-const generated = path.join(__dirname, "generated");
+/* =====================================================
+   CREATORAI STUDIO PRO
+   SERVER v4.0
+===================================================== */
 
-fs.mkdirSync(tmp, { recursive: true });
-fs.mkdirSync(generated, { recursive: true });
+const __dirname =
+  path.dirname(
+    fileURLToPath(import.meta.url)
+  );
 
-app.use(express.json({ limit: "15mb" }));
-app.use(express.urlencoded({ extended: true, limit: "15mb" }));
+const execFileAsync =
+  promisify(execFile);
 
-app.use(express.static(__dirname));
-app.use("/generated", express.static(generated));
+const app =
+  express();
 
-const upload = multer({
-  dest: tmp,
-  limits: {
-    fileSize: 100 * 1024 * 1024
+const PORT =
+  Number(
+    process.env.PORT || 3000
+  );
+
+
+/* =====================================================
+   DIRECTORIES
+===================================================== */
+
+const generatedDir =
+  path.join(
+    __dirname,
+    "generated"
+  );
+
+const tmpDir =
+  path.join(
+    __dirname,
+    "tmp"
+  );
+
+
+fs.mkdirSync(
+  generatedDir,
+  {
+    recursive: true
   }
-});
+);
 
-const clean = value =>
-  String(value ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
+fs.mkdirSync(
+  tmpDir,
+  {
+    recursive: true
+  }
+);
 
-const formatInfo = format =>
-  format === "youtube" || format === "long"
-    ? {
-        aspectRatio: "16:9",
-        width: 1280,
-        height: 720
-      }
-    : {
-        aspectRatio: "9:16",
-        width: 720,
-        height: 1280
-      };
 
-const generatedUrl = filename =>
-  `/generated/${encodeURIComponent(filename)}`;
+/* =====================================================
+   UPLOAD
+===================================================== */
 
-const removeFile = async file => {
-  try {
-    await fs.promises.unlink(file);
-  } catch {}
-};
+const upload =
+  multer({
+    dest: tmpDir,
 
-const runFFmpeg = async args =>
-  exec(ffmpegPath, args, {
-    windowsHide: true,
-    maxBuffer: 10 * 1024 * 1024
+    limits: {
+      fileSize:
+        100 * 1024 * 1024
+    }
   });
 
-function voiceRate(speed) {
-  const value = Math.max(
-    0.75,
-    Math.min(1.5, Number(speed) || 1)
-  );
-
-  const percent =
-    Math.round((value - 1) * 100);
-
-  return `${percent >= 0 ? "+" : ""}${percent}%`;
-}
-
-function voiceName(value) {
-  return (
-    clean(value) ||
-    process.env.TTS_VOICE ||
-    "en-US-AndrewMultilingualNeural"
-  );
-}
 
 /* =====================================================
-   FALLBACK SCRIPT
+   MIDDLEWARE
 ===================================================== */
 
-function fallbackScript(prompt, format) {
-  const topic =
-    clean(prompt) || "this topic";
+app.use(
+  express.json({
+    limit: "10mb"
+  })
+);
 
-  const scenes = [
-    {
-      headline: "The hook",
-      body:
-        `Here is the simple idea behind ${topic}.`,
-      duration: 5
-    },
-    {
-      headline: "The key idea",
-      body:
-        `The most important part is understanding what makes ${topic} useful.`,
-      duration: 5
-    },
-    {
-      headline: "Why it matters",
-      body:
-        "This matters because it can help you learn faster and make better decisions.",
-      duration: 5
-    },
-    {
-      headline: "A practical step",
-      body:
-        "Start with one small step, test it, and improve the result.",
-      duration: 5
-    },
-    {
-      headline: "Creator tip",
-      body:
-        "Keep the message clear, visual and easy to remember.",
-      duration: 5
-    },
-    {
-      headline: "Call to action",
-      body:
-        "Save this video and follow for more useful creator content.",
-      duration: 4
-    }
-  ];
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: "10mb"
+  })
+);
 
-  return {
-    title: topic.slice(0, 80),
-    format,
-    aspectRatio: formatInfo(format).aspectRatio,
-    voiceScript: scenes
-      .map(scene => scene.body)
-      .join(" "),
-    scenes
-  };
-}
 
-/* =====================================================
-   NORMALIZE AI RESULT
-===================================================== */
+/*
+   IMPORTANT:
+   Your index.html is in project root,
+   not inside public/.
+*/
 
-function normalizePlan(data, prompt, format) {
-  const scenes = (
-    Array.isArray(data?.scenes)
-      ? data.scenes
-      : []
+app.use(
+  express.static(
+    __dirname
   )
-    .slice(0, 8)
-    .map((scene, index) => ({
-      headline:
-        clean(scene?.headline) ||
-        `Scene ${index + 1}`,
+);
 
-      body:
-        clean(scene?.body),
 
-      duration:
-        Math.max(
-          3,
-          Math.min(
-            12,
-            Number(scene?.duration) || 5
-          )
-        )
-    }))
-    .filter(scene => scene.body);
+/*
+   Generated files
+*/
 
-  if (!scenes.length) {
-    return fallbackScript(
-      prompt,
-      format
-    );
+app.use(
+  "/generated",
+  express.static(
+    generatedDir,
+    {
+      maxAge: "1h"
+    }
+  )
+);
+
+
+/* =====================================================
+   HELPERS
+===================================================== */
+
+function cleanText(
+  value
+) {
+
+  return String(
+    value ?? ""
+  )
+    .replace(
+      /\s+/g,
+      " "
+    )
+    .trim();
+
+}
+
+
+function safeFileName(
+  value
+) {
+
+  return (
+    cleanText(
+      value
+    )
+      .replace(
+        /[^a-z0-9_-]/gi,
+        "_"
+      )
+      .slice(
+        0,
+        80
+      ) ||
+    "creatorai"
+  );
+
+}
+
+
+function clamp(
+  number,
+  min,
+  max
+) {
+
+  return Math.min(
+    max,
+    Math.max(
+      min,
+      number
+    )
+  );
+
+}
+
+
+/* =====================================================
+   FORMAT
+===================================================== */
+
+function getFormatInfo(
+  format
+) {
+
+  if (
+    format === "youtube" ||
+    format === "long"
+  ) {
+
+    return {
+      aspectRatio: "16:9",
+      width: 1280,
+      height: 720
+    };
+
   }
 
+
   return {
+    aspectRatio: "9:16",
+    width: 720,
+    height: 1280
+  };
+
+}
+
+
+/* =====================================================
+   VOICE
+===================================================== */
+
+function getVoiceName(
+  requestedVoice
+) {
+
+  return (
+    cleanText(
+      requestedVoice
+    ) ||
+    process.env.TTS_VOICE ||
+    "en-US-EmmaMultilingualNeural"
+  );
+
+}
+
+
+/*
+   Convert frontend speed:
+
+   0.75 = -25%
+   1.00 = normal
+   1.25 = +25%
+*/
+
+function rateFromSpeed(
+  speed
+) {
+
+  const value =
+    clamp(
+      Number(speed) || 1,
+      0.75,
+      1.25
+    );
+
+  const percent =
+    Math.round(
+      (value - 1) * 100
+    );
+
+  return (
+    `${percent >= 0 ? "+" : ""}${percent}%`
+  );
+
+}
+
+
+/* =====================================================
+   REMOVE FILE
+===================================================== */
+
+async function removeFile(
+  file
+) {
+
+  if (!file)
+    return;
+
+  try {
+
+    await fs.promises.unlink(
+      file
+    );
+
+  } catch {}
+
+}
+
+
+/* =====================================================
+   FONT
+===================================================== */
+
+async function findFont(
+  bold = false
+) {
+
+  const candidates =
+    bold
+
+      ? [
+          "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+          "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"
+        ]
+
+      : [
+          "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+          "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"
+        ];
+
+
+  for (
+    const file of candidates
+  ) {
+
+    try {
+
+      await fs.promises.access(
+        file
+      );
+
+      return file;
+
+    } catch {}
+
+  }
+
+
+  return "";
+
+}
+
+
+/* =====================================================
+   FILTER ESCAPE
+===================================================== */
+
+function escapeFilterValue(
+  value
+) {
+
+  return String(
+    value
+  )
+    .replace(
+      /\\/g,
+      "\\\\"
+    )
+    .replace(
+      /:/g,
+      "\\:"
+    )
+    .replace(
+      /'/g,
+      "\\'"
+    )
+    .replace(
+      /\[/g,
+      "\\["
+    )
+    .replace(
+      /\]/g,
+      "\\]"
+    );
+
+}
+
+
+/* =====================================================
+   HEALTH
+===================================================== */
+
+app.get(
+  "/api/health",
+  (_, res) => {
+
+    res.json({
+
+      ok: true,
+
+      app:
+        "CreatorAI Studio Pro",
+
+      version:
+        "4.0.0",
+
+      ffmpeg:
+        Boolean(
+          ffmpegPath
+        ),
+
+      gemini:
+        Boolean(
+          process.env.GEMINI_API_KEY
+        ),
+
+      features: [
+
+        "AI script",
+
+        "AI voice",
+
+        "scene video",
+
+        "background music",
+
+        "MP4 export",
+
+        "WebM conversion",
+
+        "9:16",
+
+        "16:9"
+
+      ]
+
+    });
+
+  }
+);
+
+
+/* =====================================================
+   FALLBACK AI SCRIPT
+===================================================== */
+
+function fallbackScript(
+  prompt,
+  format
+) {
+
+  const topic =
+    cleanText(
+      prompt
+    ) ||
+    "this topic";
+
+
+  const scenes = [
+
+    {
+      headline:
+        "The hook",
+
+      body:
+        `Here is what you need to know about ${topic}.`,
+
+      duration:
+        5
+    },
+
+    {
+      headline:
+        "The key idea",
+
+      body:
+        `The most important part of ${topic} is understanding the main idea and how it works.`,
+
+      duration:
+        5
+    },
+
+    {
+      headline:
+        "Why it matters",
+
+      body:
+        `This matters because it can help you make smarter decisions and get better results.`,
+
+      duration:
+        5
+    },
+
+    {
+      headline:
+        "A simple step",
+
+      body:
+        `Start with one practical step, test the result, and improve from there.`,
+
+      duration:
+        5
+    },
+
+    {
+      headline:
+        "Final tip",
+
+      body:
+        `Keep learning and applying what works as you create more content.`,
+
+      duration:
+        5
+    },
+
+    {
+      headline:
+        "Call to action",
+
+      body:
+        `Follow, save and share for more useful creator tips.`,
+
+      duration:
+        4
+    }
+
+  ];
+
+
+  return {
+
     title:
-      clean(data?.title) ||
-      clean(prompt).slice(0, 80),
+      topic.slice(
+        0,
+        80
+      ),
 
     format,
 
     aspectRatio:
-      formatInfo(format).aspectRatio,
+      getFormatInfo(
+        format
+      ).aspectRatio,
 
     voiceScript:
-      clean(data?.voiceScript) ||
-      scenes.map(s => s.body).join(" "),
+      scenes
+        .map(
+          scene =>
+            scene.body
+        )
+        .join(" "),
 
     scenes
+
   };
+
 }
 
+
 /* =====================================================
-   GEMINI AI PLAN
+   GEMINI SCRIPT
 ===================================================== */
 
-async function generateAIPlan(
+async function generateAIScript(
   prompt,
   format
 ) {
+
   const apiKey =
     process.env.GEMINI_API_KEY;
 
+
+  /*
+     No API key:
+     app still works.
+  */
+
   if (!apiKey) {
+
     console.log(
-      "GEMINI_API_KEY not configured. Using fallback."
+      "Gemini key not configured. Using local fallback."
     );
 
     return fallbackScript(
       prompt,
       format
     );
+
   }
+
 
   const model =
     process.env.GEMINI_MODEL ||
     "gemini-2.5-flash";
 
-  const instruction = `
-Create a professional social-media video plan.
 
-Topic:
+  const info =
+    getFormatInfo(
+      format
+    );
+
+
+  const instruction = `
+
+You are the professional AI scriptwriter
+inside CreatorAI Studio Pro.
+
+Create a social media video plan.
+
+TOPIC:
 ${prompt}
 
-Format:
+FORMAT:
 ${format}
 
+ASPECT RATIO:
+${info.aspectRatio}
+
 Requirements:
-- Create a strong hook.
+
+- Create an original hook.
 - Give useful information.
 - Use natural spoken language.
-- Create 5 to 8 scenes.
-- Each scene must contain headline, body and duration.
-- Duration must be between 3 and 12 seconds.
-- Create a complete narration.
+- Make the narration engaging.
+- Create 5 to 7 scenes.
+- Every scene needs headline, body and duration.
+- Duration must be between 3 and 10 seconds.
+- Total narration should normally be 25 to 45 seconds.
 - Finish with a natural call to action.
-- Return ONLY valid JSON.
 - Do not use markdown.
+- Return ONLY valid JSON.
 
 Return exactly:
 
@@ -254,74 +620,118 @@ Return exactly:
   "scenes": [
     {
       "headline": "short headline",
-      "body": "spoken text",
+      "body": "short scene text",
       "duration": 5
     }
   ]
 }
 `;
 
+
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-        model
-      )}:generateContent`,
-      {
-        method: "POST",
 
-        headers: {
-          "Content-Type":
-            "application/json",
+    const response =
+      await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
 
-          "x-goog-api-key":
-            apiKey
-        },
+          method:
+            "POST",
 
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
+          headers: {
+
+            "Content-Type":
+              "application/json",
+
+            "x-goog-api-key":
+              apiKey
+
+          },
+
+          body:
+            JSON.stringify({
+
+              contents: [
+
                 {
-                  text: instruction
+
+                  parts: [
+
+                    {
+                      text:
+                        instruction
+                    }
+
+                  ]
+
                 }
-              ]
-            }
-          ],
 
-          generationConfig: {
-            temperature: 0.8,
-            maxOutputTokens: 2200
-          }
-        })
-      }
-    );
+              ],
 
-    if (!response.ok) {
+              generationConfig: {
+
+                temperature:
+                  0.8,
+
+                maxOutputTokens:
+                  1800
+
+              }
+
+            })
+
+        }
+      );
+
+
+    if (
+      !response.ok
+    ) {
+
+      const errorText =
+        await response.text();
+
       console.error(
         "Gemini API error:",
-        response.status
+        response.status,
+        errorText
       );
 
-      return fallbackScript(
-        prompt,
-        format
+      throw new Error(
+        `Gemini returned ${response.status}`
       );
+
     }
+
 
     const data =
       await response.json();
 
-    let text =
+
+    const text =
       data
         ?.candidates?.[0]
         ?.content?.parts
-        ?.map(part => part.text || "")
+        ?.map(
+          part =>
+            part.text || ""
+        )
         .join("")
         .trim();
 
-    text =
+
+    if (!text) {
+
+      throw new Error(
+        "Empty Gemini response"
+      );
+
+    }
+
+
+    const cleaned =
       text
-        ?.replace(
+        .replace(
           /^```json\s*/i,
           ""
         )
@@ -335,15 +745,107 @@ Return exactly:
         )
         .trim();
 
-    return normalizePlan(
-      JSON.parse(text),
-      prompt,
-      format
-    );
+
+    const result =
+      JSON.parse(
+        cleaned
+      );
+
+
+    if (
+      !result.voiceScript ||
+      !Array.isArray(
+        result.scenes
+      )
+    ) {
+
+      throw new Error(
+        "Invalid AI response"
+      );
+
+    }
+
+
+    const scenes =
+      result.scenes
+        .slice(
+          0,
+          8
+        )
+        .map(
+          scene => ({
+
+            headline:
+              cleanText(
+                scene.headline
+              ) ||
+              "Key idea",
+
+            body:
+              cleanText(
+                scene.body
+              ),
+
+            duration:
+              clamp(
+                Number(
+                  scene.duration
+                ) || 5,
+                3,
+                10
+              )
+
+          })
+        )
+        .filter(
+          scene =>
+            scene.body
+        );
+
+
+    if (
+      !scenes.length
+    ) {
+
+      throw new Error(
+        "No valid scenes"
+      );
+
+    }
+
+
+    return {
+
+      title:
+        cleanText(
+          result.title
+        ) ||
+        cleanText(
+          prompt
+        ).slice(
+          0,
+          80
+        ),
+
+      format,
+
+      aspectRatio:
+        info.aspectRatio,
+
+      voiceScript:
+        cleanText(
+          result.voiceScript
+        ),
+
+      scenes
+
+    };
+
 
   } catch (error) {
+
     console.error(
-      "Gemini error:",
+      "Gemini failed. Fallback used:",
       error.message
     );
 
@@ -351,610 +853,11 @@ Return exactly:
       prompt,
       format
     );
-  }
-}
 
-/* =====================================================
-   AI VOICE
-===================================================== */
-
-async function generateVoiceFile(
-  text,
-  voice,
-  speed
-) {
-  const filename =
-    `voice-${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2, 8)}.mp3`;
-
-  const file =
-    path.join(
-      generated,
-      filename
-    );
-
-  const tts =
-    new EdgeTTS(
-      text,
-      voice,
-      {
-        rate: voiceRate(speed),
-        volume: "+0%",
-        pitch: "+0Hz"
-      }
-    );
-
-  const result =
-    await tts.synthesize();
-
-  const buffer =
-    Buffer.from(
-      await result.audio.arrayBuffer()
-    );
-
-  if (!buffer.length) {
-    throw new Error(
-      "TTS returned empty audio."
-    );
   }
 
-  await fs.promises.writeFile(
-    file,
-    buffer
-  );
-
-  return {
-    file,
-    filename,
-    url:
-      generatedUrl(filename)
-  };
 }
 
-/* =====================================================
-   BACKGROUND MUSIC
-===================================================== */
-
-async function createMusic(
-  output,
-  duration
-) {
-  const seconds =
-    Math.max(
-      5,
-      Math.min(
-        120,
-        Number(duration) || 30
-      )
-    );
-
-  await runFFmpeg([
-    "-y",
-
-    "-f",
-    "lavfi",
-    "-i",
-    `sine=frequency=196:duration=${seconds}`,
-
-    "-f",
-    "lavfi",
-    "-i",
-    `sine=frequency=246.94:duration=${seconds}`,
-
-    "-f",
-    "lavfi",
-    "-i",
-    `sine=frequency=293.66:duration=${seconds}`,
-
-    "-filter_complex",
-    "[0:a]volume=.018[a];" +
-      "[1:a]volume=.012[b];" +
-      "[2:a]volume=.009[c];" +
-      "[a][b][c]amix=3:duration=longest," +
-      "lowpass=f=1800," +
-      "afade=t=in:d=1," +
-      `afade=t=out:st=${Math.max(
-        1,
-        seconds - 2
-      )}:d=2`,
-
-    "-ac",
-    "2",
-
-    "-ar",
-    "44100",
-
-    "-c:a",
-    "pcm_s16le",
-
-    output
-  ]);
-}
-
-/* =====================================================
-   FFMPEG TEXT HELPERS
-===================================================== */
-
-function escapeFFmpegText(value) {
-  return String(value ?? "")
-    .replace(/\\/g, "\\\\")
-    .replace(/:/g, "\\:")
-    .replace(/'/g, "\\'")
-    .replace(/%/g, "\\%");
-}
-
-function wrapText(text, maxChars) {
-  const lines = [];
-  let line = "";
-
-  for (
-    const word of clean(text).split(" ")
-  ) {
-    const test =
-      line
-        ? `${line} ${word}`
-        : word;
-
-    if (
-      test.length > maxChars &&
-      line
-    ) {
-      lines.push(line);
-      line = word;
-    } else {
-      line = test;
-    }
-  }
-
-  if (line) {
-    lines.push(line);
-  }
-
-  return lines.slice(0, 6);
-}
-
-function findFont(bold = true) {
-  const fonts = bold
-    ? [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"
-      ]
-    : [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"
-      ];
-
-  return (
-    fonts.find(
-      file => fs.existsSync(file)
-    ) || null
-  );
-}
-
-/* =====================================================
-   CREATE ONE SCENE
-===================================================== */
-
-async function createSceneClip(
-  scene,
-  index,
-  total,
-  info,
-  output
-) {
-  const duration =
-    Math.max(
-      3,
-      Math.min(
-        12,
-        Number(scene.duration) || 5
-      )
-    );
-
-  const font =
-    findFont(true) ||
-    findFont(false);
-
-  const filters = [];
-
-  const bodyLines =
-    wrapText(
-      scene.body,
-      info.width > 1000
-        ? 52
-        : 30
-    );
-
-  if (font) {
-    const fontFile =
-      font.replace(/'/g, "\\'");
-
-    filters.push(
-      `drawtext=fontfile='${fontFile}':` +
-        `text='CREATORAI • AI VIDEO':` +
-        `x=55:y=50:` +
-        `fontsize=${Math.round(
-          info.width * 0.025
-        )}:` +
-        `fontcolor=0x07111f:` +
-        `box=1:` +
-        `boxcolor=0x28d5f5:` +
-        `boxborderw=18`
-    );
-
-    filters.push(
-      `drawtext=fontfile='${fontFile}':` +
-        `text='${escapeFFmpegText(
-          scene.headline
-        )}':` +
-        `x=70:` +
-        `y=${Math.round(
-          info.height * 0.34
-        )}:` +
-        `fontsize=${Math.round(
-          info.width * 0.062
-        )}:` +
-        `fontcolor=white:` +
-        `shadowx=2:` +
-        `shadowy=2:` +
-        `shadowcolor=black@.5`
-    );
-
-    bodyLines.forEach(
-      (line, lineIndex) => {
-        filters.push(
-          `drawtext=fontfile='${fontFile}':` +
-            `text='${escapeFFmpegText(
-              line
-            )}':` +
-            `x=70:` +
-            `y=${Math.round(
-              info.height *
-                0.58 +
-                lineIndex *
-                  info.height *
-                  0.055
-            )}:` +
-            `fontsize=${Math.round(
-              info.width * 0.028
-            )}:` +
-            `fontcolor=0xb8c2d5`
-        );
-      }
-    );
-
-    filters.push(
-      `drawtext=fontfile='${fontFile}':` +
-        `text='SCENE ${index + 1} / ${total}':` +
-        `x=70:` +
-        `y=${info.height - 135}:` +
-        `fontsize=${Math.round(
-          info.width * 0.018
-        )}:` +
-        `fontcolor=0xd7dbea`
-    );
-  }
-
-  filters.push(
-    `drawbox=x=70:y=${
-      info.height - 90
-    }:w=${
-      info.width - 140
-    }:h=6:color=0x28d5f5:t=fill`
-  );
-
-  filters.push(
-    "format=yuv420p"
-  );
-
-  filters.push(
-    "fade=t=in:d=.3"
-  );
-
-  filters.push(
-    `fade=t=out:st=${Math.max(
-      0.5,
-      duration - 0.3
-    )}:d=.3`
-  );
-
-  const backgrounds = [
-    "0x07111f",
-    "0x10182a",
-    "0x0b2026",
-    "0x17102a",
-    "0x10201a",
-    "0x20170d"
-  ];
-
-  await runFFmpeg([
-    "-y",
-
-    "-f",
-    "lavfi",
-
-    "-i",
-    `color=c=${
-      backgrounds[
-        index % backgrounds.length
-      ]
-    }:s=${info.width}x${
-      info.height
-    }:r=30:d=${duration}`,
-
-    "-vf",
-    filters.join(","),
-
-    "-an",
-
-    "-c:v",
-    "libx264",
-
-    "-preset",
-    "veryfast",
-
-    "-crf",
-    "21",
-
-    "-pix_fmt",
-    "yuv420p",
-
-    output
-  ]);
-}
-
-/* =====================================================
-   CREATE COMPLETE VIDEO
-===================================================== */
-
-async function createVideoFile(
-  plan,
-  voicePath,
-  musicPath,
-  format
-) {
-  const info =
-    formatInfo(format);
-
-  const clips = [];
-
-  try {
-    for (
-      let i = 0;
-      i < plan.scenes.length;
-      i++
-    ) {
-      const clip =
-        path.join(
-          tmp,
-          `scene-${Date.now()}-${i}.mp4`
-        );
-
-      await createSceneClip(
-        plan.scenes[i],
-        i,
-        plan.scenes.length,
-        info,
-        clip
-      );
-
-      clips.push(clip);
-    }
-
-    const list =
-      path.join(
-        tmp,
-        `list-${Date.now()}.txt`
-      );
-
-    await fs.promises.writeFile(
-      list,
-      clips
-        .map(
-          file =>
-            `file '${file.replace(
-              /'/g,
-              "'\\''"
-            )}'`
-        )
-        .join("\n")
-    );
-
-    const silent =
-      path.join(
-        tmp,
-        `silent-${Date.now()}.mp4`
-      );
-
-    await runFFmpeg([
-      "-y",
-
-      "-f",
-      "concat",
-
-      "-safe",
-      "0",
-
-      "-i",
-      list,
-
-      "-c",
-      "copy",
-
-      silent
-    ]);
-
-    await removeFile(list);
-
-    const filename =
-      `creatorai-${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2, 8)}.mp4`;
-
-    const output =
-      path.join(
-        generated,
-        filename
-      );
-
-    await runFFmpeg([
-      "-y",
-
-      "-i",
-      silent,
-
-      "-i",
-      voicePath,
-
-      "-i",
-      musicPath,
-
-      "-filter_complex",
-      "[1:a]volume=1[v];" +
-        "[2:a]volume=.18[m];" +
-        "[v][m]amix=2:" +
-        "duration=first:" +
-        "dropout_transition=2[a]",
-
-      "-map",
-      "0:v",
-
-      "-map",
-      "[a]",
-
-      "-c:v",
-      "copy",
-
-      "-c:a",
-      "aac",
-
-      "-b:a",
-      "128k",
-
-      "-shortest",
-
-      "-movflags",
-      "+faststart",
-
-      output
-    ]);
-
-    await removeFile(
-      silent
-    );
-
-    const duration =
-      plan.scenes.reduce(
-        (total, scene) =>
-          total +
-          (
-            Number(
-              scene.duration
-            ) || 5
-          ),
-        0
-      );
-
-    return {
-      filename,
-      duration
-    };
-
-  } finally {
-    for (
-      const clip of clips
-    ) {
-      await removeFile(
-        clip
-      );
-    }
-  }
-}
-
-/* =====================================================
-   LOCAL GENERATED VOICE VALIDATION
-===================================================== */
-
-function getLocalGeneratedFile(
-  fileUrl
-) {
-  if (!fileUrl) {
-    return null;
-  }
-
-  try {
-    const pathname =
-      new URL(
-        fileUrl,
-        "http://localhost"
-      ).pathname;
-
-    const filename =
-      decodeURIComponent(
-        pathname.replace(
-          "/generated/",
-          ""
-        )
-      );
-
-    if (
-      !filename ||
-      filename.includes("/") ||
-      filename.includes("..")
-    ) {
-      return null;
-    }
-
-    const file =
-      path.resolve(
-        generated,
-        filename
-      );
-
-    const root =
-      path.resolve(
-        generated
-      ) + path.sep;
-
-    if (
-      !file.startsWith(root)
-    ) {
-      return null;
-    }
-
-    return file;
-
-  } catch {
-    return null;
-  }
-}
-
-/* =====================================================
-   HEALTH
-===================================================== */
-
-app.get(
-  "/api/health",
-  (_, res) => {
-    res.json({
-      ok: true,
-      app:
-        "CreatorAI Studio Pro",
-      version:
-        "4.0.0",
-      ffmpeg:
-        Boolean(ffmpegPath),
-      gemini:
-        Boolean(
-          process.env.GEMINI_API_KEY
-        ),
-      tts: true,
-      video: true,
-      mp4: true
-    });
-  }
-);
 
 /* =====================================================
    AI PLAN API
@@ -962,37 +865,49 @@ app.get(
 
 app.post(
   "/api/ai/plan",
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
+
     try {
+
       const prompt =
-        clean(req.body?.prompt);
+        cleanText(
+          req.body?.prompt
+        );
 
       const format =
-        clean(
-          req.body?.format
-        ) || "reel";
+        req.body?.format ||
+        "reel";
+
 
       if (!prompt) {
+
         return res
           .status(400)
           .json({
             error:
-              "Prompt is required."
+              "Prompt is required"
           });
+
       }
 
+
       const plan =
-        await generateAIPlan(
+        await generateAIScript(
           prompt,
           format
         );
 
-      res.json({
-        ok: true,
-        ...plan
-      });
+
+      res.json(
+        plan
+      );
+
 
     } catch (error) {
+
       console.error(
         "AI PLAN ERROR:",
         error
@@ -1001,14 +916,105 @@ app.post(
       res
         .status(500)
         .json({
+
           error:
-            "AI planning failed.",
+            "AI planning failed",
+
           details:
             error.message
+
         });
+
     }
+
   }
 );
+
+
+/* =====================================================
+   AI VOICE FILE
+===================================================== */
+
+async function generateVoiceFile(
+  text,
+  voiceName,
+  speed
+) {
+
+  const fileName =
+    `voice-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}.mp3`;
+
+
+  const filePath =
+    path.join(
+      generatedDir,
+      fileName
+    );
+
+
+  const tts =
+    new EdgeTTS(
+      text,
+      voiceName,
+      {
+
+        rate:
+          rateFromSpeed(
+            speed
+          ),
+
+        volume:
+          "+0%",
+
+        pitch:
+          "+0Hz"
+
+      }
+    );
+
+
+  const result =
+    await tts.synthesize();
+
+
+  const audioBuffer =
+    Buffer.from(
+      await result.audio.arrayBuffer()
+    );
+
+
+  if (
+    !audioBuffer.length
+  ) {
+
+    throw new Error(
+      "TTS returned empty audio"
+    );
+
+  }
+
+
+  await fs.promises.writeFile(
+    filePath,
+    audioBuffer
+  );
+
+
+  return {
+
+    fileName,
+
+    filePath,
+
+    url:
+      `/generated/${fileName}`
+
+  };
+
+}
+
 
 /* =====================================================
    AI VOICE API
@@ -1016,31 +1022,48 @@ app.post(
 
 app.post(
   "/api/ai/voice",
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
+
     try {
+
       const text =
-        clean(
+        cleanText(
           req.body?.text
         );
 
+
       if (!text) {
+
         return res
           .status(400)
           .json({
+
             error:
-              "Voice text is required."
+              "Voice text is required"
+
           });
+
       }
 
+
       const voice =
-        voiceName(
+        getVoiceName(
           req.body?.voice
         );
 
+
       const speed =
-        Number(
-          req.body?.speed
-        ) || 1;
+        clamp(
+          Number(
+            req.body?.speed
+          ) || 1,
+          0.75,
+          1.25
+        );
+
 
       const result =
         await generateVoiceFile(
@@ -1049,15 +1072,23 @@ app.post(
           speed
         );
 
+
       res.json({
+
         ok: true,
+
         voice,
+
         speed,
+
         url:
           result.url
+
       });
 
+
     } catch (error) {
+
       console.error(
         "VOICE ERROR:",
         error
@@ -1066,107 +1097,820 @@ app.post(
       res
         .status(500)
         .json({
+
           error:
-            "AI voice generation failed.",
+            "AI voice generation failed",
+
           details:
             error.message
+
         });
+
     }
+
   }
 );
 
+
 /* =====================================================
-   COMPLETE AI VIDEO API
+   BACKGROUND MUSIC
+===================================================== */
+
+async function createBackgroundMusic(
+  output,
+  duration
+) {
+
+  const seconds =
+    clamp(
+      Number(
+        duration
+      ) || 35,
+      5,
+      120
+    );
+
+
+  await execFileAsync(
+    ffmpegPath,
+    [
+
+      "-y",
+
+      "-f",
+      "lavfi",
+
+      "-i",
+
+      `sine=frequency=196:duration=${seconds}`,
+
+      "-af",
+      "volume=0.018",
+
+      "-ac",
+      "2",
+
+      "-ar",
+      "44100",
+
+      output
+
+    ]
+  );
+
+}
+
+
+/* =====================================================
+   CREATE REAL SCENE VIDEO
+===================================================== */
+
+async function createSceneVideo({
+  plan,
+  voicePath,
+  musicPath,
+  format
+}) {
+
+  const info =
+    getFormatInfo(
+      format
+    );
+
+
+  const scenes =
+    plan.scenes
+      .slice(
+        0,
+        8
+      );
+
+
+  if (
+    !scenes.length
+  ) {
+
+    throw new Error(
+      "No scenes available"
+    );
+
+  }
+
+
+  const headlineFont =
+    await findFont(
+      true
+    );
+
+  const bodyFont =
+    await findFont(
+      false
+    );
+
+
+  const palette = [
+
+    "0x071a2a",
+
+    "0x10152f",
+
+    "0x102a2a",
+
+    "0x21152f",
+
+    "0x20250f",
+
+    "0x15152a",
+
+    "0x0c2030",
+
+    "0x1c1230"
+
+  ];
+
+
+  const tempFiles = [];
+
+  const inputArgs = [];
+
+  const filters = [];
+
+
+  const totalDuration =
+    scenes.reduce(
+      (
+        total,
+        scene
+      ) => {
+
+        return (
+          total +
+          clamp(
+            Number(
+              scene.duration
+            ) || 5,
+            3,
+            10
+          )
+        );
+
+      },
+      0
+    );
+
+
+  try {
+
+    /* ================================================
+       CREATE EACH SCENE
+    ================================================ */
+
+    for (
+      let i = 0;
+      i < scenes.length;
+      i++
+    ) {
+
+      const scene =
+        scenes[i];
+
+
+      const duration =
+        clamp(
+          Number(
+            scene.duration
+          ) || 5,
+          3,
+          10
+        );
+
+
+      const headlineFile =
+        path.join(
+          tmpDir,
+          `headline-${Date.now()}-${i}.txt`
+        );
+
+
+      const bodyFile =
+        path.join(
+          tmpDir,
+          `body-${Date.now()}-${i}.txt`
+        );
+
+
+      await fs.promises.writeFile(
+        headlineFile,
+        cleanText(
+          scene.headline
+        ),
+        "utf8"
+      );
+
+
+      await fs.promises.writeFile(
+        bodyFile,
+        cleanText(
+          scene.body
+        ),
+        "utf8"
+      );
+
+
+      tempFiles.push(
+        headlineFile,
+        bodyFile
+      );
+
+
+      /*
+         Scene video input
+      */
+
+      inputArgs.push(
+        "-f",
+        "lavfi",
+        "-t",
+        String(duration),
+        "-i",
+        `color=c=${palette[i % palette.length]}:s=${info.width}x${info.height}:r=30`
+      );
+
+
+      const videoInput =
+        `[${i}:v]`;
+
+
+      const videoFilters = [];
+
+
+      /*
+         Headline
+      */
+
+      if (
+        headlineFont
+      ) {
+
+        videoFilters.push(
+
+          `drawtext=fontfile='${escapeFilterValue(
+            headlineFont
+          )}':textfile='${escapeFilterValue(
+            headlineFile
+          )}':fontcolor=white:fontsize=${Math.round(
+            info.width * 0.062
+          )}:line_spacing=10:x=70:y=${Math.round(
+            info.height * 0.35
+          )}:box=1:boxcolor=black@0.20:boxborderw=24`
+
+        );
+
+      } else {
+
+        videoFilters.push(
+
+          `drawtext=textfile='${escapeFilterValue(
+            headlineFile
+          )}':fontcolor=white:fontsize=${Math.round(
+            info.width * 0.062
+          )}:x=70:y=${Math.round(
+            info.height * 0.35
+          )}`
+
+        );
+
+      }
+
+
+      /*
+         Body
+      */
+
+      if (
+        bodyFont
+      ) {
+
+        videoFilters.push(
+
+          `drawtext=fontfile='${escapeFilterValue(
+            bodyFont
+          )}':textfile='${escapeFilterValue(
+            bodyFile
+          )}':fontcolor=0xb8c2d5:fontsize=${Math.round(
+            info.width * 0.028
+          )}:line_spacing=8:x=70:y=${Math.round(
+            info.height * 0.60
+          )}:box=1:boxcolor=black@0.15:boxborderw=18`
+
+        );
+
+      } else {
+
+        videoFilters.push(
+
+          `drawtext=textfile='${escapeFilterValue(
+            bodyFile
+          )}':fontcolor=0xb8c2d5:fontsize=${Math.round(
+            info.width * 0.028
+          )}:x=70:y=${Math.round(
+            info.height * 0.60
+          )}`
+
+        );
+
+      }
+
+
+      /*
+         CreatorAI label
+      */
+
+      videoFilters.push(
+
+        `drawtext=text='CREATORAI  •  AI VIDEO':fontcolor=0x28d5f5:fontsize=${Math.round(
+          info.width * 0.026
+        )}:x=70:y=55`
+
+      );
+
+
+      /*
+         Scene number
+      */
+
+      videoFilters.push(
+
+        `drawtext=text='SCENE ${i + 1}':fontcolor=white@0.55:fontsize=${Math.round(
+          info.width * 0.024
+        )}:x=w-tw-70:y=h-90`
+
+      );
+
+
+      filters.push(
+
+        `${videoInput}${videoFilters.join(
+          ","
+        )},format=yuv420p[v${i}]`
+
+      );
+
+    }
+
+
+    /* ================================================
+       CONCAT SCENES
+    ================================================ */
+
+    const concatInputs =
+      scenes
+        .map(
+          (_, i) =>
+            `[v${i}]`
+        )
+        .join("");
+
+
+    filters.push(
+
+      `${concatInputs}concat=n=${scenes.length}:v=1:a=0,format=yuv420p[v]`
+
+    );
+
+
+    /* ================================================
+       AUDIO
+    ================================================ */
+
+    const voiceIndex =
+      scenes.length;
+
+    const musicIndex =
+      scenes.length + 1;
+
+
+    filters.push(
+
+      `[${voiceIndex}:a]volume=1.0[voice]`
+
+    );
+
+
+    filters.push(
+
+      `[${musicIndex}:a]volume=0.018[music]`
+
+    );
+
+
+    filters.push(
+
+      `[voice][music]amix=inputs=2:duration=first:dropout_transition=2[a]`
+
+    );
+
+
+    /* ================================================
+       OUTPUT
+    ================================================ */
+
+    const videoName =
+      `creatorai-${safeFileName(
+        plan.title
+      )}-${Date.now()}.mp4`;
+
+
+    const videoPath =
+      path.join(
+        generatedDir,
+        videoName
+      );
+
+
+    const args = [
+
+      "-y",
+
+      ...inputArgs,
+
+      "-i",
+      voicePath,
+
+      "-i",
+      musicPath,
+
+      "-filter_complex",
+      filters.join(";"),
+
+      "-map",
+      "[v]",
+
+      "-map",
+      "[a]",
+
+      "-t",
+      String(
+        Math.ceil(
+          totalDuration
+        )
+      ),
+
+      "-c:v",
+      "libx264",
+
+      "-preset",
+      "veryfast",
+
+      "-pix_fmt",
+      "yuv420p",
+
+      "-c:a",
+      "aac",
+
+      "-b:a",
+      "128k",
+
+      "-movflags",
+      "+faststart",
+
+      videoPath
+
+    ];
+
+
+    await execFileAsync(
+      ffmpegPath,
+      args,
+      {
+        maxBuffer:
+          8 * 1024 * 1024
+      }
+    );
+
+
+    return {
+
+      fileName:
+        videoName,
+
+      filePath:
+        videoPath,
+
+      duration:
+        Math.ceil(
+          totalDuration
+        )
+
+    };
+
+
+  } finally {
+
+    await Promise.all(
+      tempFiles.map(
+        removeFile
+      )
+    );
+
+  }
+
+}
+
+
+/* =====================================================
+   COMPLETE AI VIDEO
 ===================================================== */
 
 app.post(
   "/api/ai/video",
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
+
+    let voicePath =
+      null;
+
+    let musicPath =
+      null;
+
+
     try {
+
       const prompt =
-        clean(
+        cleanText(
           req.body?.prompt
         );
 
+
       const format =
-        clean(
-          req.body?.format
-        ) || "reel";
+        req.body?.format ||
+        "reel";
+
 
       if (!prompt) {
+
         return res
           .status(400)
           .json({
+
             error:
-              "Prompt is required."
+              "Prompt is required"
+
           });
+
       }
 
+
       console.log(
-        "Creating CreatorAI video:",
+        "================================"
+      );
+
+      console.log(
+        "Creating CreatorAI video..."
+      );
+
+      console.log(
+        "Prompt:",
         prompt
       );
 
-      /*
-       * IMPORTANT:
-       * Use the plan already generated
-       * by the frontend whenever possible.
-       */
 
-      const plan =
-        req.body?.plan?.scenes
-          ? normalizePlan(
-              req.body.plan,
-              prompt,
+      /* ==============================================
+         IMPORTANT:
+         USE EXISTING PLAN FROM FRONTEND
+         instead of generating another one.
+      ============================================== */
+
+      let plan =
+        req.body?.plan;
+
+
+      if (
+        !plan ||
+        !Array.isArray(
+          plan.scenes
+        ) ||
+        !plan.voiceScript
+      ) {
+
+        console.log(
+          "No existing plan received. Generating one."
+        );
+
+
+        plan =
+          await generateAIScript(
+            prompt,
+            format
+          );
+
+      } else {
+
+        plan = {
+
+          ...plan,
+
+          format,
+
+          aspectRatio:
+            getFormatInfo(
               format
-            )
-          : await generateAIPlan(
-              prompt,
-              format
-            );
+            ).aspectRatio,
+
+          title:
+            cleanText(
+              plan.title
+            ) ||
+            cleanText(
+              prompt
+            ).slice(
+              0,
+              80
+            ),
+
+          voiceScript:
+            cleanText(
+              plan.voiceScript
+            ),
+
+          scenes:
+            plan.scenes
+              .slice(
+                0,
+                8
+              )
+              .map(
+                scene => ({
+
+                  headline:
+                    cleanText(
+                      scene.headline
+                    ) ||
+                    "Scene",
+
+                  body:
+                    cleanText(
+                      scene.body
+                    ),
+
+                  duration:
+                    clamp(
+                      Number(
+                        scene.duration
+                      ) || 5,
+                      3,
+                      10
+                    )
+
+                })
+              )
+              .filter(
+                scene =>
+                  scene.body
+              )
+
+        };
+
+      }
+
+
+      if (
+        !plan.scenes.length
+      ) {
+
+        throw new Error(
+          "Video plan contains no scenes"
+        );
+
+      }
+
+
+      /* ==============================================
+         VOICE
+      ============================================== */
+
+      const voice =
+        getVoiceName(
+          req.body?.voice
+        );
+
+
+      const speed =
+        clamp(
+          Number(
+            req.body?.voiceSpeed
+          ) || 1,
+          0.75,
+          1.25
+        );
+
 
       /*
-       * Reuse the already generated
-       * voice file if it exists.
-       */
+         Try to reuse voice generated
+         by /api/ai/voice.
+      */
 
-      let voicePath =
-        getLocalGeneratedFile(
+      const requestedVoiceUrl =
+        cleanText(
           req.body?.voiceUrl
         );
 
-      let voiceUrl =
-        req.body?.voiceUrl || "";
 
       if (
-        !voicePath ||
-        !fs.existsSync(
-          voicePath
+        requestedVoiceUrl.startsWith(
+          "/generated/"
         )
       ) {
+
+        const fileName =
+          path.basename(
+            requestedVoiceUrl
+          );
+
+
+        const candidate =
+          path.join(
+            generatedDir,
+            fileName
+          );
+
+
+        try {
+
+          await fs.promises.access(
+            candidate
+          );
+
+          voicePath =
+            candidate;
+
+
+          console.log(
+            "Using existing AI voice:",
+            fileName
+          );
+
+        } catch {
+
+          console.log(
+            "Existing voice not found. Generating new voice."
+          );
+
+        }
+
+      }
+
+
+      /*
+         Generate only if required.
+      */
+
+      if (!voicePath) {
+
+        console.log(
+          "Generating AI voice..."
+        );
+
+
         const voiceResult =
           await generateVoiceFile(
             plan.voiceScript,
-            voiceName(
-              req.body?.voice
-            ),
-            req.body?.voiceSpeed
+            voice,
+            speed
           );
 
-        voicePath =
-          voiceResult.file;
 
-        voiceUrl =
-          voiceResult.url;
+        voicePath =
+          voiceResult.filePath;
+
       }
 
-      /*
-       * Music
-       */
 
-      const totalDuration =
+      /* ==============================================
+         MUSIC
+      ============================================== */
+
+      const musicName =
+        `music-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}.wav`;
+
+
+      musicPath =
+        path.join(
+          generatedDir,
+          musicName
+        );
+
+
+      const sceneDuration =
         plan.scenes.reduce(
-          (total, scene) =>
+          (
+            total,
+            scene
+          ) =>
             total +
             (
               Number(
@@ -1176,35 +1920,53 @@ app.post(
           0
         );
 
-      const musicFilename =
-        `music-${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2, 8)}.wav`;
 
-      const musicPath =
-        path.join(
-          generated,
-          musicFilename
-        );
-
-      await createMusic(
-        musicPath,
-        totalDuration
+      console.log(
+        "Creating background music..."
       );
 
-      /*
-       * Final video
-       */
+
+      await createBackgroundMusic(
+        musicPath,
+        sceneDuration
+      );
+
+
+      /* ==============================================
+         VIDEO
+      ============================================== */
+
+      console.log(
+        "Rendering scene video..."
+      );
+
 
       const video =
-        await createVideoFile(
+        await createSceneVideo({
+
           plan,
+
           voicePath,
+
           musicPath,
+
           format
-        );
+
+        });
+
+
+      /* ==============================================
+         RESPONSE
+      ============================================== */
+
+      console.log(
+        "Video complete:",
+        video.fileName
+      );
+
 
       res.json({
+
         ok: true,
 
         title:
@@ -1221,116 +1983,152 @@ app.post(
         scenes:
           plan.scenes,
 
-        voiceUrl,
+        voiceUrl:
+          `/generated/${path.basename(
+            voicePath
+          )}`,
 
         musicUrl:
-          generatedUrl(
-            musicFilename
-          ),
+          `/generated/${musicName}`,
 
         videoUrl:
-          generatedUrl(
-            video.filename
-          ),
+          `/generated/${video.fileName}`,
 
         duration:
-          Math.ceil(
-            video.duration
-          )
+          video.duration
+
       });
 
+
     } catch (error) {
+
       console.error(
-        "VIDEO GENERATION ERROR:",
+        "================================"
+      );
+
+      console.error(
+        "VIDEO GENERATION ERROR"
+      );
+
+      console.error(
         error
       );
+
 
       res
         .status(500)
         .json({
+
           error:
-            "Automatic video generation failed.",
+            "Automatic video generation failed",
+
           details:
             error?.message ||
             "Unknown error"
+
         });
+
     }
+
   }
 );
 
+
 /* =====================================================
-   WEBM -> MP4
+   MP4 CONVERSION
 ===================================================== */
 
 app.post(
   "/api/convert/mp4",
-  upload.single("video"),
-  async (req, res) => {
-    if (!req.file) {
+  upload.single(
+    "video"
+  ),
+  async (
+    req,
+    res
+  ) => {
+
+    if (
+      !req.file
+    ) {
+
       return res
         .status(400)
         .json({
+
           error:
-            "No video uploaded."
+            "No video uploaded"
+
         });
+
     }
+
 
     const input =
       req.file.path;
 
+
     const output =
       `${input}.mp4`;
 
+
     try {
-      await runFFmpeg([
-        "-y",
 
-        "-i",
-        input,
+      await execFileAsync(
+        ffmpegPath,
+        [
 
-        "-c:v",
-        "libx264",
+          "-y",
 
-        "-preset",
-        "veryfast",
+          "-i",
+          input,
 
-        "-crf",
-        "21",
+          "-c:v",
+          "libx264",
 
-        "-pix_fmt",
-        "yuv420p",
+          "-pix_fmt",
+          "yuv420p",
 
-        "-c:a",
-        "aac",
+          "-movflags",
+          "+faststart",
 
-        "-b:a",
-        "128k",
+          "-c:a",
+          "aac",
 
-        "-movflags",
-        "+faststart",
+          "-b:a",
+          "128k",
 
-        output
-      ]);
+          output
+
+        ]
+      );
+
 
       await removeFile(
         input
       );
+
 
       res.download(
         output,
         "creatorai-video.mp4",
         async () => {
+
           await removeFile(
             output
           );
+
         }
       );
 
+
     } catch (error) {
+
       console.error(
         "MP4 ERROR:",
         error
       );
+
 
       await removeFile(
         input
@@ -1340,21 +2138,30 @@ app.post(
         output
       );
 
+
       if (
         !res.headersSent
       ) {
+
         res
           .status(500)
           .json({
+
             error:
-              "MP4 conversion failed.",
+              "MP4 conversion failed",
+
             details:
               error.message
+
           });
+
       }
+
     }
+
   }
 );
+
 
 /* =====================================================
    GENERATED FILES
@@ -1362,33 +2169,58 @@ app.post(
 
 app.get(
   "/api/generated",
-  async (_, res) => {
-    const files =
-      await fs.promises
-        .readdir(generated)
-        .catch(() => []);
+  async (
+    _,
+    res
+  ) => {
 
-    res.json({
-      files
-    });
+    try {
+
+      const files =
+        await fs.promises.readdir(
+          generatedDir
+        );
+
+
+      res.json({
+        files
+      });
+
+
+    } catch {
+
+      res.json({
+        files: []
+      });
+
+    }
+
   }
 );
 
+
 /* =====================================================
    SPA FALLBACK
+   EXPRESS 5 COMPATIBLE
 ===================================================== */
 
 app.get(
   "/{*splat}",
-  (_, res) => {
+  (
+    _,
+    res
+  ) => {
+
     res.sendFile(
       path.join(
         __dirname,
         "index.html"
       )
     );
+
   }
 );
+
 
 /* =====================================================
    ERROR HANDLER
@@ -1401,27 +2233,38 @@ app.use(
     res,
     __
   ) => {
+
     console.error(
       "SERVER ERROR:",
       error
     );
 
+
     if (
       res.headersSent
     ) {
+
       return;
+
     }
+
 
     res
       .status(500)
       .json({
+
         error:
-          "Internal server error.",
+          "Internal server error",
+
         details:
-          error?.message
+          error?.message ||
+          "Unknown error"
+
       });
+
   }
 );
+
 
 /* =====================================================
    START
@@ -1430,12 +2273,13 @@ app.use(
 app.listen(
   PORT,
   () => {
+
     console.log(
       "======================================"
     );
 
     console.log(
-      "CreatorAI Studio Pro v4"
+      "CreatorAI Studio Pro v4.0"
     );
 
     console.log(
@@ -1461,5 +2305,6 @@ app.listen(
     console.log(
       "======================================"
     );
+
   }
 );
